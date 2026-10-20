@@ -6,7 +6,7 @@
   A ball on the short arm of a pivoting lever, the long arm carries a flag in an opto endstop. It is opened by hand
   before probing (`deployprobe0.g` waits for the operator) and latches closed when pushed too far. Offset from the nozzle on the author's printer: X −12.365, Y −39.593 mm.
   Trigger height `G31 K0 Z` ≈ 0.8–0.9 mm (the nozzle is that high above the bed when K0 triggers).
-- **K1 – [Zcythe Stone](https://github.com/grzechot/Zcythe.stone)** (nozzle sensor, on the bed frame beside the bed, outside the print area). A ball top on a
+- **K1 – [Zcythe Stone](https://github.com/grzechot/Zcythe.stone)** (nozzle sensor, on the bed frame beside the bed, outside the print area). The rounded head of an M3 screw on a
   lever with an opto sensor. K0 is too light to trigger it; only the nozzle pressing on it does. Its trigger point
   is set mechanically by a screw (≈ 0.4–0.55 mm per turn, loosening raises K1).
 
@@ -18,14 +18,14 @@ Both probes are continuous-mode digital probes; a probe "releases" when the moti
             K0 on bed            K0 on K1 apex          nozzle on K1
                |                     |                      ||
                o  <- K0 ball         o                     _||_  <- nozzle
-                                    ( )  <- K1 ball top    ( )
+                                    ( )  <- K1 screw head    ( )
   ============bed=========   |=====frame=====|     |=====frame=====|
         zBed                       zK0v                   zHEv          (machine Z at trigger)
 ```
 
 1. **Bed next to K1** – K0 dives on the bed 20 mm left of K1 (`bedOff`): `zBed`.
 2. **K0 on the K1 apex** – one preliminary dive (discarded – the first dive in a new spot is 0.02–0.045 mm low)
-   plus 4 dives at ±`dK` (0.6 mm) in X and Y. The response of a ball is a parabola,
+   plus 4 dives at ±`dK` (0.6 mm) in X and Y. The response of the rounded head is a parabola,
    `z(d) ≈ z0 − d²/(2R)` with the effective radius R ≈ 7.5 mm, so the apex position is
    `x0 = cX + R·(z(+dK) − z(−dK)) / (2·dK)` (same in Y). Then two agreeing dives (within `agree` = 0.006 mm)
    at the apex: `zK0v`.
@@ -48,7 +48,7 @@ Derived values:
 ## The missing constant
 
 Write the physics with three unknowns: true trigger height `g` (= G31), K1 apex height above the bed `T`, and
-the K1 dead travel `d` (how far the nozzle pushes the K1 ball down before the sensor switches). With K0 pretravel
+the K1 dead travel `d` (how far the nozzle pushes the K1 tip down before the sensor switches). With K0 pretravel
 equal on the bed and on the apex:
 
 ```
@@ -66,7 +66,7 @@ reference is needed. Today it is `kThr = T − d`, obtained once from a first-la
 
 Every mechanical change of K1 (screw, mount) or of the bed sheet changes `T` and/or `d` → new `kThr` and new R1.
 
-**Planned:** measure `d` directly (the operator brings a rigid part of the toolhead onto the K1 ball until it
+**Planned:** measure `d` directly (the operator brings a rigid part of the toolhead onto the K1 tip until it
 triggers), then `G31 = dz − d` with no print reference and a single method.
 
 ## Two methods – which one is used
@@ -84,7 +84,7 @@ change – the macro warns when the methods differ by more than `tolG31Methods`.
 - New G31 vs `lastGoodG31` > `tolG31Live` → window **HESCAL2: G31 REJECTED** (Use measured / Repeat / Change tol).
 - Methods differ > `tolG31Methods` → console warning only.
 - Measurement fails during a print → window **HESCAL2: ERROR** (Repeat / Use last good / Cancel); heaters stay on.
-- K0 misses K1 → window from `hes_manual.g`: the operator jogs K0 over the K1 ball (±5 / ±0.5 mm buttons) and
+- K0 misses K1 → window from `hes_manual.g`: the operator jogs K0 over the K1 tip (±5 / ±0.5 mm buttons) and
   the step restarts from there.
 - `kThr <= 0` → G31 is never written (measurement-only mode). `lastGoodG31 = 99` blocks writing for test runs.
 

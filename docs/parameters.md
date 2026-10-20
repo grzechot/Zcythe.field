@@ -17,7 +17,7 @@ Values are the author's (2026-10-19). Units mm unless noted.
 | `k0Clear`, `k0DiveStart` | 0.8 / 1.0 | K0 travel clearance and dive start above the bed. |
 | `calRetract` | 6 | Filament retract during calibration (returned at the end; `eOwed` on abort). |
 | `tolOffAccept` | 0.5 | Largest automatically accepted change of the K0→nozzle XY offset (`O1`). |
-| `global.hesR` | 5.0 (default) | Effective radius of the ball response; measured ≈ 7.5 with `HesTip`, set in `hes_cfg.g`. |
+| `global.hesR` | 5.0 (default) | Effective radius of the K1 tip response; measured ≈ 7.5 with `HesTip`, set in `hes_cfg.g`. |
 
 Reference values (`hes_refdata.g`, written by R1): `refTipBed`, `refK0v`, `refHEv`, `refG31Z`, `refK0X/Y`, `refHEX/Y`.
 `lastGoodG31` (runtime global, starts from `refG31Z`) is the last accepted G31; `99` blocks writing (tests).

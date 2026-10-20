@@ -55,7 +55,7 @@ values – replace them after your first R1 (see [procedures](procedures.md)). `
 (HesCal2 loads it unconditionally).
 
 Optional files created at runtime: `k0offset.g` (K0→nozzle XY offset, `HesCal2 O1`), `hes_cfg.g`
-(`global.hesR`, effective ball radius from `HesTip`; default 5.0 when absent), `heightmap_ext.csv`,
+(`global.hesR`, effective K1 tip radius from `HesTip`; default 5.0 when absent), `heightmap_ext.csv`,
 `hes_hist.csv`, `hes_h.csv`, `mesh_log.csv`, `cancel_log.csv`.
 
 ## 4. Machine-specific values to edit
@@ -80,7 +80,7 @@ M116
 2. `G28` – watch the homing summary (`-- HOMING DONE --`).
 3. `G32` – converges in 2–4 passes to ≤ `tolBed`.
 4. `HesFind` – locate the K1 apex with K0 (writes `global.findX/Y/Z`); put it into `hes_last.g`.
-5. `HesTip` (optional) – characterise the effective ball radius R → `hes_cfg.g`.
+5. `HesTip` (optional) – characterise the effective K1 tip radius R → `hes_cfg.g`.
 6. `macros/wipe`, then `HesCal2` with `lastGoodG31 = 99` (test mode, G31 is not written) – check `K1 margin`
    and adjust the K1 screw to `kMargin` ± `kMarginTol`.
 7. Print a first-layer test, determine the true G31, set `kThr`, run `HesCal2 R1`.

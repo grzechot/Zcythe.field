@@ -6,7 +6,7 @@ Two probes work together:
 | Probe | Name | Where | In RRF |
 |---|---|---|---|
 | bed probe – ball tip on a pivoting arm, opto sensor | **Zcythe** (K0) | on the toolhead | `K0`, `sensors.probes[0]` |
-| nozzle reference sensor – ball top on a lever, opto sensor | **Zcythe Stone** (K1) | on the bed frame, next to the bed | `K1`, `sensors.probes[1]` |
+| nozzle reference sensor – rounded M3 screw head on a lever, opto sensor | **Zcythe Stone** (K1) | on the bed frame, next to the bed | `K1`, `sensors.probes[1]` |
 
 Before every print the macros measure the bed and the top of K1 with K0, then press the nozzle onto K1.
 From these three dives they compute the nozzle height at the K0 trigger point and set `G31 K0 Z` –
