@@ -11,6 +11,10 @@
 | K0 Zcythe | `zstop` (pull-up) | `M558 P5 C"^zstop" H5:3 F120:80 T18000 A5 S0.01 R0.3` + `G31 P500 X-10 Y-40 Z0.9` |
 | K1 Zcythe Stone | `e0stop` | `M558 K1 P8 C"e0stop" H3 F60 T6000 A1` + `G31 K1 P500 X0 Y0 Z0` |
 
+The Zcythe README suggests `M558 P5 C"zstop" H1.2:0.4 F150:90 T30000 A5 S0.003` for a single probe.
+Zcythe Field uses higher dive heights (5 / 3 mm, 15 mm for the first G32 pass – the gantry can be skewed after
+power-off) and one fixed fine speed everywhere (80 mm/min), because the K0 trigger height depends on the speed.
+
 K1 is defined permanently, so DWC shows both probes. The `G31 K0` values in `config.g` are only start-up
 defaults – `k0offset.g` (written by `HesCal2 O1`) and `HesCal2` overwrite them at runtime.
 

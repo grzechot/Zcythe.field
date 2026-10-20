@@ -2,12 +2,11 @@
 
 ## The two probes
 
-- **K0 – Zcythe** (bed probe, on the toolhead). A 3.2 mm ball on a short arm (10 mm) of a pivoting lever;
-  the long arm (85 mm) carries a flag in an opto sensor (≈ 8.5 : 1 lever ratio). It is a *manually deployed*
-  needle: before probing it must be open (`deployprobe0.g` waits for the operator), and it closes by itself
-  when pushed too far. Offset from the nozzle on the author's printer: X −12.365, Y −39.593 mm.
+- **K0 – [Zcythe](https://github.com/grzechot/Zcythe.3d-printer-bed-probe)** (bed probe, on the toolhead).
+  A ball on the short arm of a pivoting lever, the long arm carries a flag in an opto endstop. It is opened by hand
+  before probing (`deployprobe0.g` waits for the operator) and latches closed when pushed too far. Offset from the nozzle on the author's printer: X −12.365, Y −39.593 mm.
   Trigger height `G31 K0 Z` ≈ 0.8–0.9 mm (the nozzle is that high above the bed when K0 triggers).
-- **K1 – Zcythe Stone** (nozzle sensor, on the bed frame beside the bed, outside the print area). A ball top on a
+- **K1 – [Zcythe Stone](https://github.com/grzechot/Zcythe.stone)** (nozzle sensor, on the bed frame beside the bed, outside the print area). A ball top on a
   lever with an opto sensor. K0 is too light to trigger it; only the nozzle pressing on it does. Its trigger point
   is set mechanically by a screw (≈ 0.4–0.55 mm per turn, loosening raises K1).
 

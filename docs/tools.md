@@ -52,3 +52,9 @@ Script help texts and some output are still in Polish.
 | `xdir.py` | yes | Approach-direction hysteresis of K0 (variants interleaved round-robin). |
 | `adir.py` | yes | Approach direction −X vs +X in a chosen area. |
 | `prof.py` | yes | Dense K0 profile along Y vs the interpolated Mesh (is the grid dense enough?). |
+
+## CAD
+
+| Script | Purpose |
+|---|---|
+| `cad/pk2_miniatury.py` | `python tools/cad/pk2_miniatury.py <folder with .pk2> [output]` – extracts `Thumbnail.png` from Creo Elements/Direct `.pk2` files (ZIP) and writes an `index.html` gallery. |

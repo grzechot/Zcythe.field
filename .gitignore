@@ -12,3 +12,5 @@ dwc*.json
 eventlog*
 *.bin
 *.bak
+tools/cad/png/
+tools/cad/index.html

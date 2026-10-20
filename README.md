@@ -1,4 +1,4 @@
-# Zcythe Field – RRF macros
+# Zcythe Field – automatic Z offset with Zcythe + Zcythe Stone
 
 **Zcythe Field** is an automatic Z-offset (`G31 Z`) calibration system for RepRapFirmware printers.
 Two probes work together:
@@ -12,10 +12,12 @@ Before every print the macros measure the bed and the top of K1 with K0, then pr
 From these three dives they compute the nozzle height at the K0 trigger point and set `G31 K0 Z` –
 no paper, no feeler gauge, no manual babystepping after a nozzle change.
 
-This repository holds the RRF side: start sequence, homing, levelling, the calibration macro `HesCal2`,
-the bed mesh, console helpers and Python tools that drive and log the printer over HTTP.
-The probes themselves (CAD, STL, geometry) are in the companion repository
-[`Zcythe.field-hardware`](../field-hardware) <!-- TODO: link after publishing -->.
+This repository is the **system**: the RepRapFirmware macros for print start-up (heating, homing, levelling,
+calibration, mesh, prime), the calibration macro `HesCal2`, console helpers, Python tools that drive and log the
+printer over HTTP, and the documentation of the method. The probes are separate projects:
+
+- [Zcythe](https://github.com/grzechot/Zcythe.3d-printer-bed-probe) – the bed probe (K0),
+- [Zcythe Stone](https://github.com/grzechot/Zcythe.stone) – the nozzle sensor (K1).
 
 ## Status
 
@@ -43,7 +45,7 @@ Expect to read the macros before using them. Nothing here is plug-and-play yet.
 ```
 sys/        files for 0:/sys  (start.g, homing, bed.g, HesCal2 measurement, Mesh helpers, console helpers)
 macros/     files for 0:/macros (HesCal2 wrapper, Mesh, wipe, prime, HesFind, HesTip …)
-tools/      Python/PowerShell helpers using the rr_* HTTP API (set PRINTER_HOST)
+tools/      Python/PowerShell helpers using the rr_* HTTP API (set PRINTER_HOST); tools/cad – .pk2 thumbnails
 docs/       documentation
 ```
 
@@ -53,6 +55,7 @@ docs/       documentation
 - [Installation](docs/installation.md) – files on the SD card, `config.g` lines, first run
 - [Macros](docs/macros.md) – every file in `sys/` and `macros/`
 - [Parameters](docs/parameters.md) – what to tune and where
+- [Geometry](docs/geometry.md) – probe dimensions and how they map to the parameters
 - [Procedures](docs/procedures.md) – R1 reference, K1 margin, screw adjustment, after a print
 - [Console](docs/console.md) – PanelDue/DWC message rules
 - [Tools](docs/tools.md) – Python scripts
