@@ -13,7 +13,6 @@ configuration, kept because the core files call it or assume it.
 | `daemon.g` | Core. Runs every ~10 s (RRF daemon). Only bookkeeping: records since when the bed is at its target (`bedInTargetSince`) for `bedsoak.g`. |
 | `bedsoak.g` | Core. Bed soak before G32 and measurements: 8 min from reaching the target when cold, 3 min when it started within 5 °C, none when the bed has been at target long enough (data: thermal test 2026-10-12, PLA 55 °C – the bed dome settles in 2–9 min). |
 | `sleep.g`, `stop.g` | Printer. Empty templates from the RRF configuration tool. |
-| `config.g`, `config-override.g` | Printer. Reference only – see [installation](installation.md). |
 
 ## Homing (`sys/`)
 
@@ -78,6 +77,10 @@ configuration, kept because the core files call it or assume it.
 | `prime` | Reload + purge + brush pass, no return to park. Called by `start.g` (step 6) and `resume.g`. `L` = reload length, `Q` = retract after purge. |
 | `RetryLastStep` | Resume `start.g` from `lastInitStep` while the axes are still homed. |
 | `SkipCalOn` / `SkipCalOff` | Next `start.g` skips / does G32 and HesCal2. |
+
+## Examples (`examples/`)
+
+`config.g`, `config-override.g` – the author's printer configuration, reference only – see [installation](installation.md).
 
 ## Not included
 

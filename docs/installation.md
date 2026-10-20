@@ -31,7 +31,7 @@ M557 X5:410 Y5:370 P6:6                      ; only for a plain G29; Mesh uses i
 M575 P1 S1 B57600                            ; PanelDue
 ```
 
-`config.g` in `sys/` is the full file of the author's printer, for reference. Do not copy it blindly
+`examples/config.g` is the full file of the author's printer, for reference. Do not copy it blindly
 (motors, currents, heaters, filament sensor and tool definitions are machine-specific).
 
 No globals have to be declared in `config.g` – every macro creates the globals it needs

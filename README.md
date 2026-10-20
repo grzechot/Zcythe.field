@@ -45,6 +45,7 @@ Expect to read the macros before using them. Nothing here is plug-and-play yet.
 ```
 sys/        files for 0:/sys  (start.g, homing, bed.g, HesCal2 measurement, Mesh helpers, console helpers)
 macros/     files for 0:/macros (HesCal2 wrapper, Mesh, wipe, prime, HesFind, HesTip …)
+examples/   the author's config.g (reference only)
 tools/      Python/PowerShell helpers using the rr_* HTTP API (set PRINTER_HOST); tools/cad – .pk2 thumbnails
 docs/       documentation
 ```
