@@ -32,13 +32,75 @@ Duet 2 WiFi, RRF 3.6.1). It is used for real prints, but:
 
 Expect to read the macros before using them. Nothing here is plug-and-play yet.
 
+## Which printers
+
+Any printer where Zcythe Stone can be fixed rigidly to the bed (or its frame) and the nozzle can reach it:
+
+| Kinematics | Examples | Where Stone goes | Status |
+|---|---|---|---|
+| CoreXY, bed moves in Z | Voron Trident, RatRig V-Core, VZBot | bed frame, beside the bed | **tested** (4 Z motors, 400 × 400) |
+| CoreXY, flying gantry, fixed bed | Voron 2.4 | bed / bed frame | should work, untested |
+| bed slinger (bed moves in Y) | Prusa i3 style, Ender style | on the moving bed carriage | should work, untested |
+| Cartesian / IDEX with a Z bed | – | bed frame | should work, untested |
+
+`bed.g` is written for 4 independent Z motors (`G32` with `M671`); with 1–3 Z motors adapt the levelling points
+or skip G32 in `start.g`. Delta printers are not covered.
+
 ## Requirements
 
+- **The nozzle must travel about 15 mm beyond the bed edge** – Stone sits outside the print area, and both the
+  nozzle and Zcythe (offset from the nozzle) have to reach its tip. Check `M208` limits and the cable chain.
 - Duet 2 WiFi with **RepRapFirmware 3.6.1** – the only tested combination. Duet 3 / RRF 3.5.x may work
   (the macros use `fileread`, `M291 S4/S6` with buttons, `G38.3 K`, object model expressions) but are untested.
-- A bed probe usable as `M558 P5` (digital, K0) and a second digital probe input for K1 (`M558 K1 P8`).
+  Klipper / Marlin: not supported (the method would carry over, the macros would not).
+- Two digital probe inputs: Zcythe as `M558 P5` (K0) and Stone as `M558 K1 P8`.
+- XY probing with moderate dynamics (≈ 2000 mm/s², the macros set it) – Zcythe has a very light trigger.
 - PanelDue (optional – console rules are tuned for the 5"/7" 800 × 480 panel) and DWC.
 - Python 3.8+ (standard library only) for `tools/`.
+
+## Measured accuracy
+
+Author's printer, October 2026 (raw data in the work logs, not in this repository).
+
+| Quantity | Result |
+|---|---|
+| Zcythe single dive, same point (σ) | 0.0012–0.0016 mm; spread of single dives ≤ 0.007 mm |
+| Two consecutive dives must agree | within 0.006 mm (HesCal2), 0.01 mm (G32, Mesh) |
+| Bed map noise (two meshes in a row) | σ of the difference 0.004 mm, max 0.015 mm |
+| Mesh check (re-measured points vs map) | ± 0.008 mm |
+| Z homing repeatability (check C) | 0.003–0.01 mm |
+| XY endstop repeatability (check B) | ± 0.0125 mm |
+| G32 final deviation (4 Z motors) | ≤ 0.02 mm, typically 0.014 mm, 2–4 passes |
+| G31 from HesCal2, 10 full start cycles | 0.895–0.907 mm, σ 0.004 mm (10/10 without errors) |
+| G31 vs first-layer print (micrometer) | "from the bed" method 0.862–0.873 mm vs ≈ 0.86 from the print |
+| Full start sequence (home, G32, HesCal2, Mesh 7 × 7) | ≈ 6 min; HesCal2 alone ≈ 60 s |
+
+Limits: the result is only as good as the reference R1 (one first-layer print) and the Z drive – lost Z steps or
+a sagging gantry show up directly in the numbers (see below).
+
+## Diagnostics – what it shows about the printer
+
+With a 0.001–0.004 mm probe on the toolhead and a fixed reference beside the bed, the system measures the printer
+itself. Findings on the author's machine (scripts in `tools/`):
+
+- **Bed thermal expansion:** the 400 mm steel bed forms a dome of 0.10 mm at 45 °C, 0.13 at 55 °C, 0.165 at 65 °C
+  (≈ 0.0035 mm/K), no hysteresis, settles within ± 0.005 mm in 2–9 min → automatic bed soak before levelling (`bedsoak.g`).
+- **Gantry / Z-screw drift while warming up:** −0.156 mm mean Z and tilt over 2.5 h, removed by one G32 → level after warm-up.
+- **Hotend thermal expansion:** the nozzle grows 0.015–0.025 mm relative to Zcythe at 220–275 °C; Zcythe drifts
+  ≈ −0.03 mm next to a hot hotend.
+- **Bed sag / Z drive:** lost steps on one Z motor (0.8–2.7 mm after a few hundred fast Z cycles, `zstep.py`), driver dropouts and a
+  slowly sinking bed (0.02–0.08 mm/h per corner, `zwatch.py`), gantry skew after motors off (± 1.5 mm, `zdrop.py`).
+- **Probe vs speed:** trigger height depends on the dive speed (0.04 mm between 240 and 30–60 mm/min, `zspeed.py`).
+- **Carriage / harness:** Zcythe reads 0.018 mm lower after the head was at the left end of X (cable chain load, `xdir.py`);
+  approach direction −X vs +X ≤ 0.009 mm (`adir.py`).
+- **Bed stability map** (repeatability per point, drift-corrected, `bedstab.py`) and **mesh density check**
+  (dense profile vs mesh ≤ 0.016 mm, `prof.py`).
+- **Every start:** homing checks B/C catch a failing endstop (a +5 mm fault was caught) or a Z zero shift;
+  G32 passes and HesCal2 values (K1 margin, tip height, G31 methods) are logged to `hes_hist.csv`, so changes in the
+  mechanics show up from print to print.
+
+In short: if the printer has a mechanical imperfection that moves the nozzle relative to the bed by more than
+~0.01 mm, Zcythe Field will usually show it.
 
 ## Layout
 
