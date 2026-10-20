@@ -1,0 +1,14 @@
+# local data and logs written by tools/
+data/
+firmware/
+__pycache__/
+*.pyc
+*.log
+scratch*
+# never commit WiFi passwords / DWC settings / event logs / binaries from an SD card
+config.json
+configtool.json
+dwc*.json
+eventlog*
+*.bin
+*.bak

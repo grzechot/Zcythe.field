@@ -1,0 +1,52 @@
+; prime - doladowanie filamentu cofnietego przez wipe i wypchniecie porcji do oczyszczenia dyszy
+; Konczy sie przejazdem po szczotce (Y60 -> Y20) i uniesieniem Z - BEZ powrotu do ParkCoord i bez wipe po nim
+; (to trwalo za dlugo i robilo przerwe w druku): kolejny ruch (dojazd do wydruku) robi wywolujacy.
+; Wywolanie: M98 P"0:/macros/prime" [L<mm> = doladowanie zamiast reloadLen] [Q<mm> = retract po purge, domyslnie 0]
+;   - ze slicera (Machine start G-code), PO ustawieniu temp. druku: M98 P"0:/macros/prime"   (Q=0: slicer zaklada
+;     filament niecofniety); resume.g: L = retract z pause.g, Q2 = anty-wyciek na czas szybkiego dojazdu
+; WiperCoord (global.wiperX/wiperY/parkYOffset) jest zdefiniowany TYLKO w wipe.g - tutaj tylko odczyt.
+; ParkCoord = wiperX, wiperY+parkYOffset - liczone na biezaco, nie cache'owane (patrz komentarz w wipe.g).
+; Bezpieczne, bo resume.g wola "wipe" przed "prime", a start.g (wipe) biegnie przed drukiem, wiec te globalne sa juz ustawione.
+; --- dane startowe ---
+var primeY0 = 20           ; zakres starcia kropli po purge (eksperymentalnie ustalone - nie ParkCoord)
+var primeY1 = 60
+var primeZ = 2
+var liftZ = exists(global.hopZ) ? global.hopZ : 5   ; bezpieczna wysokosc do dojazdu (po poziomowaniu = hopZ)
+var heater = 1              ; grzalka narzedzia 0
+; brak wlasnej stalej temperatury - prime wymaga temp. ACTIVE biezacego filamentu (nie standby jak
+; wipe/HesCal), bo tu faktycznie wytlaczamy - standby moglby byc za zimny do porzadnego przepływu
+var reloadLen = 20         ; doladowanie = cofniecie z wipe [mm]; resume.g podaje L = retract z pause.g (start.g bez L)
+if exists(param.L)
+  set var.reloadLen = param.L
+var purgeLen = 10          ; porcja wypchnieta do oczyszczenia [mm]
+var reloadF = 300          ; predkosc doladowania [mm/min]
+var purgeF = 120           ; predkosc purgingu [mm/min]
+var travelF = (exists(global.hopZ) && global.hopZ < 5) ? 24000 : 6000
+var wipeF = 3000
+var postRetract = 0         ; retract po purge i szczotce [mm]; param Q
+if exists(param.Q)
+  set var.postRetract = param.Q
+
+if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+  abort "prime: najpierw wykonaj G28"
+
+G90
+G1 Z{var.liftZ} F{var.travelF}
+G1 X{global.wiperX} Y{var.primeY0} F{var.travelF}
+G1 Z{var.primeZ} F{var.travelF}
+if heat.heaters[var.heater].active <= 0
+  abort "prime: brak ustawionej temperatury active dla narzedzia - ustaw ja (slicer/M568) przed drukiem"
+; prime wymaga temp. ACTIVE (nie standby) - faktyczne wytlaczanie. Dodatkowo nie nizej niz granica min.
+; temp. ekstruzji + 5, bo przy active = 160 (= granica) ekstruder byl blokowany ("Tool 0 was not driven").
+var primeTemp = max(heat.heaters[var.heater].active, heat.coldExtrudeTemperature + 5)
+if heat.heaters[var.heater].current < var.primeTemp
+  M568 P0 S{var.primeTemp} A2   ; wlacz grzanie (active), standby bez zmian (M109 nadpisywalo tez standby)
+  M116 P0                       ; czekaj na narzedzie 0
+M83                        ; ekstruder wzgledny
+G1 E{var.reloadLen} F{var.reloadF}
+G1 E{var.purgeLen} F{var.purgeF}
+G1 Y{var.primeY1} F{var.wipeF}   ; zdjecie kropli na szczotce
+G1 Y{var.primeY0} F{var.wipeF}
+G1 Z{var.liftZ} F{var.travelF}
+if var.postRetract > 0
+  G1 E{-var.postRetract} F1800   ; anty-wyciek na czas szybkiego dojazdu (tylko gdy podano Q)

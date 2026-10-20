@@ -1,0 +1,7 @@
+; SkipCalOn - nastepny start.g pominie G32 (homing+poziomowanie) i HesCal
+; uzyj tylko wtedy, gdy osie sa nadal zbazowane i poziomowanie jest swieze (np. powtorka wydruku
+; zaraz po nieudanej probie); flaga kasuje sie po resecie/zaniku zasilania
+if !exists(global.skipCal)
+  global skipCal = false
+set global.skipCal = true
+M118 P2 S"skipCal WLACZONY - nastepny start.g pominie G32 i HesCal"

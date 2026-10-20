@@ -1,0 +1,10 @@
+; RetryLastStep - wznawia sekwencje startu (start.g) od ostatniego nieudanego kroku, bez ponownego
+; homingu/poziomowania stolu. Bezpieczne tylko, dopoki osie XYZ sa nadal zbazowane - RRF samo czysci
+; "homed" po M18/M84 (utrata pradu trzymajacego) albo po resecie, wiec to jest wlasciwy i wystarczajacy
+; warunek "do zaniku napiecia na silnikach". Jesli osie nie sa zbazowane, trzeba wykonac start.g od nowa.
+if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+  abort "RetryLastStep: osie nie sa zbazowane (utrata zasilania silnikow od ostatniego G32) - wykonaj start.g od nowa"
+if !exists(global.lastInitStep) || global.lastInitStep == 0
+  abort "RetryLastStep: brak zapisanego nieudanego kroku - nie ma czego powtarzac"
+M118 P2 S{"RetryLastStep: wznawiam start.g od kroku " ^ global.lastInitStep}
+M98 P"0:/sys/start.g" S{global.lastInitStep}

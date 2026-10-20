@@ -1,0 +1,187 @@
+; HesTip - charakterystyka koncowki K1 (kula R~5) i powtarzalnosci zjazdow. TYLKO ZBIERANIE DANYCH.
+; Wynik: 0:/sys/hes_tip_char.csv (sonda,os,offset,V,z,stan) - analiza poza drukarka (R kuli, plateau pierscienia dyszy,
+; sigma przy roznych predkosciach). Niczego nie zapisuje do G31 ani do danych odniesienia.
+; Wymaga: osie zbazowane, K0Tip otwarta, wipe wykonane (wiperX/Y), ostatni udany HesCal (hes_last.g = polozenie K1),
+; hotend na standby (165).
+; Wywolanie: M98 P"0:/macros/HesTip" [A1 = krzyz K0 | B1 = krzyz dyszy | C1 = powtarzalnosc K0 | D1 = powtarzalnosc dyszy]
+;   bez parametrow = wszystko (ok. 60-70 zjazdow, ok. 9-10 min). Kazdy zjazd: hes_h.g (V = predkosc mm/min).
+; Dysza: floor (global.hesFloor) chroni stol: dolny limit kazdego zjazdu K1 = zBed - refG31Z + kThr - floorMargin.
+; --- parametry ---
+var kThr = 0            ; [mm] jak w HesCal (kThr = nozzle nad Bed przy zadzialaniu K1)
+var floorMargin = 0.10
+var bedOff = -20        ; jak w HesCal
+var reps = 5            ; powtorzen na predkosc w tescie powtarzalnosci
+var heYoff = 0.3        ; punkt zjazdu dyszy: y srodka pierscienia nad wierzcholkiem = lastHEY + heYoff
+var all = !exists(param.A) && !exists(param.B) && !exists(param.C) && !exists(param.D)
+var doA = var.all || (exists(param.A) && param.A == 1)
+var doB = var.all || (exists(param.B) && param.B == 1)
+var doC = var.all || (exists(param.C) && param.C == 1)
+var doD = var.all || (exists(param.D) && param.D == 1)
+if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+  abort "HesTip: osie nie sa zbazowane"
+if !exists(global.wiperX) || !exists(global.wiperY) || !exists(global.parkYOffset)
+  abort "HesTip: brak WiperCoord - uruchom najpierw wipe"
+if heat.heaters[1].standby <= 0
+  abort "HesTip: brak temperatury standby (M568 P0 R165)"
+var hcTemp = max(heat.heaters[1].standby, heat.coldExtrudeTemperature + 5)
+if heat.heaters[1].current < var.hcTemp
+  M568 P0 S{var.hcTemp} A2
+  M116 P0
+if !exists(global.refK0X)
+  M98 P"0:/sys/hes_refdata.g"
+if fileexists("0:/sys/hes_last.g")
+  M98 P"0:/sys/hes_last.g"
+if !exists(global.lastK0X)
+  abort "HesTip: brak hes_last.g - najpierw udany HesCal"
+if !exists(global.hesFloor)
+  global hesFloor = -999
+if !exists(global.hesK0Clear)
+  global hesK0Clear = -999
+var cX = global.lastK0X
+var cY = global.lastK0Y
+var hX = global.lastHEX
+var hY = global.lastHEY + var.heYoff
+var fail = ""
+var meshWas = move.compensation.type == "mesh"
+var zBed = 0
+var zc = 0
+var zh = 0
+var ax = 0
+var i = 0
+var j = 0
+var x = 0
+var y = 0
+var v = 0
+var lo = 0
+var offs = {-0.8, -0.4, -0.2, 0.2, 0.4, 0.8}
+var offH = {-1.0, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1.0}
+var speeds = {30, 60, 120}
+; K0Tip samoczynnie sie zamyka po pomiarach, a hes_vdive.g (stol) nie wola deployprobe0.g - jawne otwarcie
+; (szybkie wyjscie, gdy otwarta; inaczej komunikat "Manual Deploy" i czekanie na Ciebie)
+M98 P"0:/sys/deployprobe0.g"
+M83
+G1 E-6 F900
+G29 S2
+echo >"0:/sys/hes_tip_char.csv" "sonda,os,offset,V,z,stan"
+
+; ---------- stol obok K1 ----------
+M98 P"0:/sys/hes_vdive.g" K0 X{var.cX + var.bedOff} Y{var.cY} S5.5 L0.3 N2 Q1
+if !global.vdOk
+  set var.fail = "HesTip: K0 nie znalazla stolu"
+else
+  set var.zBed = global.vdZ
+  set global.hesFloor = var.zBed + global.refHEv - global.refK0v + global.refTipBed - var.floorMargin
+  set global.hesK0Clear = var.zBed + 1.0
+  echo >>"0:/sys/hes_tip_char.csv" "BED,-,0,60," ^ var.zBed ^ ",0"
+
+; ---------- K0: srodek (wierzcholek z hes_last) ----------
+if var.fail == ""
+  M98 P"0:/sys/hes_h.g" K0 X{var.cX} Y{var.cY} S{var.zBed + 0.8} L{var.zBed + 0.03}
+  if global.hSt != 0
+    set var.fail = "HesTip: K0 nie trafia w wierzcholek K1 (hSt " ^ global.hSt ^ ") - uruchom HesCal/HesFind"
+  else
+    set var.zc = global.hZ
+    echo >>"0:/sys/hes_tip_char.csv" "K0,C,0,30," ^ var.zc ^ ",0"
+
+; ---------- K0: krzyz +-0.2/0.4/0.8 mm w X i w Y ----------
+if var.fail == "" && var.doA
+  set var.ax = 0
+  while var.ax < 2 && var.fail == ""
+    set var.i = 0
+    while var.i < 6 && var.fail == ""
+      set var.x = var.cX + (var.ax == 0 ? var.offs[var.i] : 0)
+      set var.y = var.cY + (var.ax == 1 ? var.offs[var.i] : 0)
+      set var.lo = max(var.zc - 0.25, var.zBed + 0.03)
+      M98 P"0:/sys/hes_h.g" K0 X{var.x} Y{var.y} S{var.zc + 0.15} L{var.lo}
+      if global.hSt == 2
+        M98 P"0:/sys/hes_h.g" K0 X{var.x} Y{var.y} S{var.zc + 0.45} L{var.lo}
+      echo >>"0:/sys/hes_tip_char.csv" "K0," ^ (var.ax == 0 ? "X" : "Y") ^ "," ^ var.offs[var.i] ^ ",30," ^ global.hZ ^ "," ^ global.hSt
+      set var.i = var.i + 1
+    set var.ax = var.ax + 1
+
+; ---------- K0: powtarzalnosc w srodku przy V = 30/60/120 ----------
+if var.fail == "" && var.doC
+  set var.j = 0
+  while var.j < 3 && var.fail == ""
+    set var.v = var.speeds[var.j]
+    set var.i = 0
+    while var.i < var.reps && var.fail == ""
+      set var.lo = max(var.zc - 0.25, var.zBed + 0.03)
+      M98 P"0:/sys/hes_h.g" K0 X{var.cX} Y{var.cY} S{var.zc + 0.15} L{var.lo} V{var.v}
+      if global.hSt == 2
+        M98 P"0:/sys/hes_h.g" K0 X{var.cX} Y{var.cY} S{var.zc + 0.45} L{var.lo} V{var.v}
+      echo >>"0:/sys/hes_tip_char.csv" "K0,R,0," ^ var.v ^ "," ^ global.hZ ^ "," ^ global.hSt
+      set var.i = var.i + 1
+    set var.j = var.j + 1
+
+; ---------- dysza (K1): konfiguracja jak w HesCal ----------
+var k1On = false
+if var.fail == "" && (var.doB || var.doD)
+  M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
+  M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
+  M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
+  set var.k1On = true
+  ; okno wzgledne (niezalezne od kThr/G31): wysokosc dyszy przy zadzialaniu K1 = zK0 - (refK0v - refHEv) z ostatniego R1
+  var zExp = var.zc - (global.refK0v - global.refHEv)
+  M98 P"0:/sys/hes_h.g" K1 X{var.hX} Y{var.hY} S{var.zExp + 0.3} L{var.zExp - 0.3}
+  if global.hSt == 2
+    M98 P"0:/sys/hes_h.g" K1 X{var.hX} Y{var.hY} S{var.zExp + 0.8} L{var.zExp - 0.3}
+  if global.hSt != 0
+    set var.fail = "HesTip: dysza nie znalazla K1 w oknie (hSt " ^ global.hSt ^ ", floor " ^ global.hesFloor ^ ") - sprawdz kThr/G31"
+  else
+    set var.zh = global.hZ
+    echo >>"0:/sys/hes_tip_char.csv" "HE,C,0,30," ^ var.zh ^ ",0"
+
+; ---------- dysza: krzyz +-0.25..1.0 mm w X i w Y (wzgledem punktu dysza = hX, hY) ----------
+if var.fail == "" && var.doB
+  set var.ax = 0
+  while var.ax < 2 && var.fail == ""
+    set var.i = 0
+    while var.i < 8 && var.fail == ""
+      set var.x = var.hX + (var.ax == 0 ? var.offH[var.i] : 0)
+      set var.y = var.hY + (var.ax == 1 ? var.offH[var.i] : 0)
+      set var.lo = max(var.zh - 0.25, global.hesFloor)
+      M98 P"0:/sys/hes_h.g" K1 X{var.x} Y{var.y} S{var.zh + 0.12} L{var.lo}
+      if global.hSt == 2
+        M98 P"0:/sys/hes_h.g" K1 X{var.x} Y{var.y} S{var.zh + 0.42} L{var.lo}
+      echo >>"0:/sys/hes_tip_char.csv" "HE," ^ (var.ax == 0 ? "X" : "Y") ^ "," ^ var.offH[var.i] ^ ",30," ^ global.hZ ^ "," ^ global.hSt
+      set var.i = var.i + 1
+    set var.ax = var.ax + 1
+
+; ---------- dysza: powtarzalnosc w srodku przy V = 30/60/120 ----------
+if var.fail == "" && var.doD
+  set var.j = 0
+  while var.j < 3 && var.fail == ""
+    set var.v = var.speeds[var.j]
+    set var.i = 0
+    while var.i < var.reps && var.fail == ""
+      set var.lo = max(var.zh - 0.25, global.hesFloor)
+      M98 P"0:/sys/hes_h.g" K1 X{var.hX} Y{var.hY} S{var.zh + 0.12} L{var.lo} V{var.v}
+      if global.hSt == 2
+        M98 P"0:/sys/hes_h.g" K1 X{var.hX} Y{var.hY} S{var.zh + 0.42} L{var.lo} V{var.v}
+      echo >>"0:/sys/hes_tip_char.csv" "HE,R,0," ^ var.v ^ "," ^ global.hZ ^ "," ^ global.hSt
+      set var.i = var.i + 1
+    set var.j = var.j + 1
+
+; ---------- sprzatanie ----------
+if var.k1On
+  M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
+  M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
+set global.hesFloor = -999
+set global.hesK0Clear = -999
+if var.k1On
+  ; odjazd w bok (nie pionowo - goraca dysza zostawia nitke na K1), jak w HesCal
+  G1 Z{(var.zh > 0 ? var.zh : var.zc) + 3} F600
+  G1 X{global.wiperX} Y{global.wiperY + global.parkYOffset} F6000
+  G1 Z10 F600
+else
+  G1 Z10 F600
+M400
+if var.meshWas
+  G29 S1
+M83
+G1 E6 F600
+if var.fail != ""
+  echo var.fail
+  abort "HesTip: przerwane - przyczyna w konsoli (echo powyzej); filament i siatka przywrocone"
+echo "HesTip: gotowe, dane w 0:/sys/hes_tip_char.csv"

@@ -1,0 +1,99 @@
+; HesFind - odszukanie czubka K1 sondą K0: skany wzdłuż X po kilku liniach Y
+; Na każdej linii zygzak od stół+zTop w dół co zStep do pierwszego kontaktu. Środek czubka = linia
+; z najwyższym kontaktem. Zakresy Z liczone od zjazdu K0 na stół obok K1 (niezależne od G32/G28).
+; Wyniki: konsola PanelDue + 0:/sys/hes_find.csv + global.findX/findY/findZ/findBed
+var xc = 425.5        ; X dyszy, przy którym K0 jest w pobliżu czubka (wczoraj)
+var yFrom = 320.5      ; K1 przeniesiony o Y-30 (2026-10-07): bylo 352..353.5
+var yTo = 326
+var yStep = 1
+var halfX = 5
+var zTop = 0.6         ; start nad stołem (nowy K1 ok. 0.3 mm nad stołem - start musi być wyżej)
+var zStep = 0.05
+var zFloor = 0.05      ; najniżej nad stołem (igła K0)
+var zSafe = 10
+var f = 600
+
+if !exists(global.findX)
+  global findX = 0
+  global findY = 0
+  global findZ = -1
+  global findBed = 0
+if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+  abort "HesFind: osie nie są zbazowane"
+M98 P"0:/sys/hes_log.g" S"HesFind start"
+var meshWas = move.compensation.type == "mesh"
+G29 S2
+G90
+
+; stół obok K1 (20 mm w -X od czubka)
+G1 Z{var.zSafe} F600
+G1 X{var.xc - 20} Y{(var.yFrom + var.yTo) / 2} F6000
+M400
+if sensors.probes[0].value[0] >= sensors.probes[0].threshold
+  abort "HesFind: K0 wyzwolona (złożona?)"
+G38.3 K0 Z0.3 F120
+M400
+var zBed = move.axes[2].machinePosition
+G1 Z{var.zSafe} F600
+M400
+if var.zBed <= 0.31
+  abort "HesFind: K0 nie znalazła stołu do Z0.3"
+M98 P"0:/sys/fmt3.g" V{var.zBed}
+M98 P"0:/sys/hes_log.g" S{"Stol Z" ^ global.fmt}
+echo >"0:/sys/hes_find.csv" "y,z,z_nad_stolem,kierunek,x_stop,hit"
+
+var y = var.yFrom
+var z = 0
+var x = 0
+var up = true
+var hit = false
+var bestZ = -1
+var bestX = 0
+var bestY = 0
+while var.y <= var.yTo + 0.0001
+  G1 Z{var.zSafe} F600
+  G1 X{var.xc - var.halfX} Y{var.y} F6000
+  M400
+  set var.z = var.zBed + var.zTop
+  set var.up = true
+  set var.hit = false
+  while !var.hit && var.z >= var.zBed + var.zFloor - 0.0001
+    G1 Z{var.z} F300
+    M400
+    if var.up
+      G38.3 K0 X{var.xc + var.halfX} F{var.f}
+    else
+      G38.3 K0 X{var.xc - var.halfX} F{var.f}
+    M400
+    set var.x = move.axes[0].machinePosition
+    set var.hit = var.up ? (var.x < var.xc + var.halfX - 0.02) : (var.x > var.xc - var.halfX + 0.02)
+    echo >>"0:/sys/hes_find.csv" var.y ^ "," ^ var.z ^ "," ^ (var.z - var.zBed) ^ "," ^ (var.up ? "+X" : "-X") ^ "," ^ var.x ^ "," ^ (var.hit ? 1 : 0)
+    if var.hit
+      G1 X{var.up ? var.x - 1 : var.x + 1} F300
+    else
+      set var.z = var.z - var.zStep
+      set var.up = !var.up
+  G1 Z{var.zSafe} F600
+  M400
+  if var.hit
+    M98 P"0:/sys/fmt3.g" V{var.z - var.zBed}
+    M98 P"0:/sys/hes_log.g" S{"Y" ^ var.y ^ ": kontakt nad stolem " ^ global.fmt ^ " X" ^ var.x}
+    if var.z > var.bestZ + 0.0001
+      set var.bestZ = var.z
+      set var.bestX = var.x
+      set var.bestY = var.y
+  else
+    M98 P"0:/sys/hes_log.g" S{"Y" ^ var.y ^ ": brak kontaktu"}
+  set var.y = var.y + var.yStep
+
+if var.meshWas
+  G29 S1
+set global.findBed = var.zBed
+set global.findZ = var.bestZ
+set global.findX = var.bestX
+set global.findY = var.bestY
+if var.bestZ < 0
+  M98 P"0:/sys/hes_log.g" S"HesFind: czubka NIE znaleziono"
+else
+  M98 P"0:/sys/fmt3.g" V{var.bestZ - var.zBed}
+  M98 P"0:/sys/hes_log.g" S{"CZUBEK: Y" ^ var.bestY ^ " X" ^ var.bestX ^ " nad stolem " ^ global.fmt}

@@ -1,0 +1,5 @@
+; SkipCalOff - start.g znow wykona pelne G32 i HesCal
+if !exists(global.skipCal)
+  global skipCal = false
+set global.skipCal = false
+M118 P2 S"skipCal wylaczony - start.g znow zrobi pelne G32 i HesCal"

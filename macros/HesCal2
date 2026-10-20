@@ -1,0 +1,12 @@
+; HesCal2 - G31 calibration (K0 / K1 / Bed / nozzle). Wrapper since 2026-10-16:
+; runs the measurement 0:/sys/hescal2_m.g (ALL parameters - kThr, tolG31Live, kMargin ... - are there) and repeats it
+; when the operator chooses "Repeat" in the "G31 REJECTED" window. Call as before:
+; M98 P"0:/macros/HesCal2" [O1 = full K0->nozzle XY offset] [A1 = accept big XY change] [R1 = save as reference]
+if !exists(global.hesRepeat)
+  global hesRepeat = false
+while true
+  set global.hesRepeat = false
+  M98 P"0:/sys/hescal2_m.g" O{exists(param.O) ? param.O : 0} A{exists(param.A) ? param.A : 0} R{exists(param.R) ? param.R : 0}
+  if !global.hesRepeat
+    break
+  M98 P"0:/sys/hes_log.g" S"Repeating HesCal2"

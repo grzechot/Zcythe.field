@@ -1,0 +1,64 @@
+; wipe - kontrola temperatury glowicy (bez pytania: za zimno -> dogrzej i czekaj, ok -> jedz dalej),
+; cofniecie filamentu, wytarcie dyszy na fizycznym wiperze (WiperCoord), zygzak Y+/Y- wysrodkowany
+; na WiperCoord.Y (4 pelne przejazdy, na kazdym skoku X-1 wzgledem poprzedniego, razem X-8),
+; na koniec powrot do ParkCoord (ta sama pozycja co po "prime" i po "pause")
+; --- WiperCoord: definiowane TYLKO tutaj - prime.g i pause.g tylko czytaja global.wiperX/wiperY/parkYOffset.
+; ParkCoord (X=wiperX, Y=wiperY+parkYOffset) NIE jest osobnym cache'owanym globalem - liczony na biezaco
+; wszedzie, gdzie potrzebny.
+; "global" deklaruje zmienna tylko raz (RRF blad przy powtornej deklaracji) - "if !exists" ponizej jest
+; wylacznie po to; SAM WYBOR liczby jest w liniach "set" zaraz pod spodem, ktore wykonuja sie ZAWSZE,
+; wiec zmiana wartosci w tym pliku dziala juz od nastepnego uruchomienia "wipe", bez restartu drukarki.
+; Bezpieczne, bo start.g/resume.g zawsze wywoluja "wipe" jako pierwsze, wiec globals sa juz odswiezone,
+; zanim prime/pause moglyby ich potrzebowac. ---
+if !exists(global.wiperX)
+  global wiperX = 0
+if !exists(global.wiperY)
+  global wiperY = 0
+if !exists(global.parkYOffset)
+  global parkYOffset = 0
+set global.wiperX = 410        ; polozenie fizycznego wipera - EDYTUJ TUTAJ
+set global.wiperY = 35         ; polozenie fizycznego wipera - EDYTUJ TUTAJ
+set global.parkYOffset = -15   ; ParkCoord.Y = WiperCoord.Y + parkYOffset - EDYTUJ TUTAJ
+; --- dane startowe ---
+var wipeYSweep = 11         ; polowa szerokosci zygzaka wzgledem WiperCoord.Y [mm] (pelny zakres = 2x)
+var wipeZ = 2              ; wysokosc wycierania
+var wipeXBump = 2          ; jednorazowy przesuw X na starcie zygzaka [mm], wzgledny
+var wipeXStep = 1          ; przesuw X na kazdym skoku Y [mm], wzgledny
+var wipeRepeats = 4        ; liczba pelnych przejazdow (kazdy = 2 skoki Y; razem wipeRepeats*2*wipeXStep = X-8)
+var travelF = (exists(global.hopZ) && global.hopZ < 5) ? 24000 : 6000   ; dojazd: po poziomowaniu F24000 (dynamika 2000/300 ustawia start.g)
+var wipeF = 3000           ; predkosc wycierania
+var heater = 1              ; grzalka narzedzia 0
+; brak wlasnej stalej temperatury - "wystarczajaca" (minimalna) do wipe/HesCal to temperatura standby
+; biezaco zaladowanego filamentu (heat.heaters[heater].standby) - dziala dla kazdego filamentu, nie tylko PLA
+var retractLen = 2         ; drobne cofniecie przeciw sacaniu (wipe wywolywane wielokrotnie - przed i po prime,
+                           ; duzy retract/reload jest w pause.g/prime, nie tutaj)
+var retractF = 300         ; predkosc cofania [mm/min]
+
+if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+  abort "wipe: najpierw wykonaj G28"
+
+; --- kontrola temperatury: wystarczajaca = standby biezacego filamentu; za zimno -> dogrzej i czekaj ---
+if heat.heaters[var.heater].standby <= 0
+  abort "wipe: brak ustawionej temperatury standby dla narzedzia - ustaw ja (slicer/M568) przed drukiem"
+; M568 zamiast M104/M109: M104/M109 nadpisuja tez STANDBY (sprawdzone 2026-10-05), a M568 S..A2 zmienia tylko active i wlacza grzanie
+; wipe cofa filament (ruch ekstrudera) - ponizej min. temp. ekstruzji RRF go nie wykona i zglasza
+; "Tool 0 was not driven". Standby = 160 = dokladnie ta granica, wiec bierzemy margines +5.
+var wipeTemp = max(heat.heaters[var.heater].standby, heat.coldExtrudeTemperature + 5)
+if heat.heaters[var.heater].current < var.wipeTemp
+  M568 P0 S{var.wipeTemp} A2   ; wlacz grzanie (active), standby bez zmian
+  M116 P0                      ; czekaj na narzedzie 0
+
+M83                        ; ekstruder wzgledny
+G1 E{-var.retractLen} F{var.retractF}
+G90
+G1 X{global.wiperX} Y{global.wiperY - var.wipeYSweep} F{var.travelF}   ; dojazd na dolny kraniec zygzaka
+G1 Z{var.wipeZ} F{var.travelF}
+G91                        ; tryb wzgledny na czas zygzaka
+G1 X{var.wipeXBump} F{var.travelF}   ; poczatkowy przesuw X
+var i = 0
+while var.i < var.wipeRepeats
+  G1 X{-var.wipeXStep} Y{2 * var.wipeYSweep} F{var.wipeF}    ; w gore, przez srodek wipera
+  G1 X{-var.wipeXStep} Y{-2 * var.wipeYSweep} F{var.wipeF}   ; w dol, z powrotem
+  set var.i = var.i + 1
+G90                        ; powrot do trybu bezwzglednego
+G1 X{global.wiperX} Y{global.wiperY + global.parkYOffset} F{var.travelF}   ; powrot do ParkCoord

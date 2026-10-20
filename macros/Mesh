@@ -1,0 +1,256 @@
+; Mesh - fresh bed height map (K0) 7x7 + extra 8th row for Y > 364, loaded into memory
+; ======================================================================================
+; WHY: K0 reaches only Y370 (M208 Y410 - probe offset 40); the map ends at Y364 while printing goes to Y400. So 7x7 = 49
+;   points (X5..395 step 65, Y10..364 step 59) are measured here and an 8th row (Y423) is ADDED: each of its points =
+;   row-7 point of the same column + row7Delta. Result: 0:/sys/heightmap_ext.csv, loaded with G29 S1. RRF 3.6 cannot
+;   read a multi-line CSV from a macro (fileread() reads the first line only), so the probing is here, not G29 + append.
+; Called by start.g (step 5, before every print). Manual: M98 P"0:/macros/Mesh"
+;   T1 = DRY test: no moves, synthetic values - only writing and loading the file.
+; 2026-10-16: English console via msg.g (PanelDue = DWC); K0 probing = homing values (decision 2026-10-16): fine dive
+;   80 mm/min with G38.3 (no firmware "Stopped at height" line; G30 S-1 does ONE dive at the FIRST speed, i.e. 180),
+;   up to 5 dives per point until two agree within 0.01 (= M558 A5 S0.01), mean of the agreeing pair.
+;   Point failure / check out of tolerance -> full-screen window instead of abort / silent warning.
+;
+; --- MANUAL PARAMETERS ---
+var row7Delta = -0.05     ; [mm] how much row 8 (Y423) is HIGHER (+) or LOWER (-) than row 7 (Y364), per column.
+                      ;      At Y400 (36 of 59 mm between rows) ~0.61 of this acts. Sign as in the map file:
+                      ;      negative = bed lower = nozzle goes lower (as in HMInterpolated.csv).
+; tolCheck (final check: highest |point| re-measured with the map OFF vs map value) is in 0:/sys/tolerances.g
+M98 P"0:/sys/tolerances.g"
+var fineF = 80        ; [mm/min] K0 dive speed (homing fine speed)
+var agreeZ = 0.01     ; [mm] two consecutive dives must agree within this (M558 S0.01)
+var maxDives = 5      ; dives per point (M558 A5)
+; --- rest ---
+var zTravel = exists(global.hopZ) ? global.hopZ : 5   ; [mm] travel height between points (after levelling hopZ = G31 + 0.8)
+var nx = 7
+var ny = 7
+var np = var.nx * var.ny
+var x0 = 5            ; grid in PROBE coordinates (X 5..395 step 65, Y 10..364 step 59)
+var dx = 65
+var y0 = 10
+var dy = 59
+var dry = exists(param.T) && param.T == 1
+var fn = "0:/sys/heightmap_ext.csv"
+var trig = sensors.probes[0].triggerHeight
+var offX = sensors.probes[0].offsets[0]
+var offY = sensors.probes[0].offsets[1]
+var h = vector(var.np, 0)
+var t0 = state.upTime
+; gentler carriage dynamics while probing (as 0:/sys/mesh.g): at full acceleration the shock after arriving at a
+; point falsely triggers K0. After an error/abort it stays gentle until restart (safe direction). Not changed for T1.
+var ax = move.axes[0].acceleration    ; mm/s^2
+var ay = move.axes[1].acceleration
+var jx = move.axes[0].jerk            ; mm/min (as M566)
+var jy = move.axes[1].jerk
+; one point: var.pz = mean of the agreeing pair (machine Z at K0 trigger), var.pOk
+var pz = 0
+var pOk = false
+var prev = 0
+var nd = 0
+var zz = 0
+var resid = 0
+var mi = 0
+var mr = 0
+var mc = 0
+var px = 0
+var py = 0
+
+if !var.dry
+  if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
+    abort "Mesh: axes not homed"
+  if sensors.probes[0].value[0] >= sensors.probes[0].threshold
+    M98 P"0:/sys/deployprobe0.g"      ; waits until K0 is deployed (probe open)
+  M201 X2000 Y2000                    ; dynamics as mesh.g
+  M566 X300 Y300
+
+while true                            ; whole measurement - repeated when the operator chooses "Repeat"
+  if !var.dry
+    G29 S2                            ; map off while probing
+    M98 P"0:/sys/msg.g" S"[um]    X5   70  135  200  265  330  395"
+    var r = 0
+    while var.r < var.ny
+      var c = 0
+      while var.c < var.nx
+        var cc = (mod(var.r, 2) == 0) ? var.c : var.nx - 1 - var.c      ; serpentine
+        set var.px = var.x0 + var.cc * var.dx
+        set var.py = var.y0 + var.r * var.dy
+        G1 Z{var.zTravel} F6000
+        G1 X{var.px - var.offX} Y{var.py - var.offY} F24000   ; nozzle so the PROBE is over the point
+        set var.pOk = false
+        while !var.pOk
+          set var.nd = 0
+          while var.nd < var.maxDives && !var.pOk
+            if sensors.probes[0].value[0] >= sensors.probes[0].threshold
+              M98 P"0:/sys/deployprobe0.g"
+            G38.3 K0 Z{var.trig - 2} F{var.fineF}
+            M400
+            if sensors.probes[0].value[0] < sensors.probes[0].threshold
+              set var.nd = 99           ; no trigger down to 2 mm below the expected bed - point failed
+            else
+              set var.zz = move.axes[2].machinePosition
+              if var.nd > 0 && abs(var.zz - var.prev) <= var.agreeZ
+                set var.pz = (var.zz + var.prev) / 2
+                set var.pOk = true
+              set var.prev = var.zz
+              set var.nd = var.nd + 1
+              G1 Z{var.zz + 0.5} F600   ; K0 releases when lifted (continuous mode)
+          if !var.pOk
+            G1 Z{var.zTravel} F600
+            M98 P"0:/sys/msg.g" S{"ERROR K0 at X" ^ var.px ^ " Y" ^ var.py}
+            M300 S2500 P300
+            M300 S1800 P300
+            M291 P{"Mesh: no 2 agreeing K0 dives (" ^ var.agreeZ ^ " mm) at X" ^ var.px ^ " Y" ^ var.py ^ ". OK = try this point again, Cancel = stop."} R"MESH ERROR" S3
+        set var.h[var.r * var.nx + var.cc] = var.pz - var.trig
+        set var.c = var.c + 1
+      ; one console line per row (7 values in um, X ascending) - together = the map table
+      var ln = "Y" ^ var.py
+      while #var.ln < 5
+        set var.ln = var.ln ^ " "
+      var k = 0
+      while var.k < var.nx
+        var s = "" ^ floor(var.h[var.r * var.nx + var.k] * 1000 + 0.5)
+        while #var.s < 5
+          set var.s = " " ^ var.s
+        set var.ln = var.ln ^ var.s
+        set var.k = var.k + 1
+      M98 P"0:/sys/msg.g" S{var.ln}
+      set var.r = var.r + 1
+    G1 Z{var.zTravel} F6000
+  else
+    ; dry test: synthetic values to check the format and loading
+    var i = 0
+    while var.i < var.np
+      set var.h[var.i] = (var.i - 24) / 1000
+      set var.i = var.i + 1
+
+  ; --- write CSV (row 8 = row 7 + row7Delta) ---
+  echo >{var.fn} "RepRapFirmware height map file v2 generated at " ^ state.time ^ " (Mesh 7x7: row 8 = row 7 " ^ var.row7Delta ^ ")"
+  echo >>{var.fn} "axis0,axis1,min0,max0,min1,max1,radius,spacing0,spacing1,num0,num1"
+  echo >>{var.fn} "X,Y,5.00,395.00,10.00,423.00,-1.00,65.00,59.00,7,8"
+  var rr = 0
+  while var.rr < var.ny + 1
+    var line = ""
+    var cc2 = 0
+    while var.cc2 < var.nx
+      var v = var.rr < var.ny ? var.h[var.rr * var.nx + var.cc2] : var.h[(var.ny - 1) * var.nx + var.cc2] + var.row7Delta
+      M98 P"0:/sys/fmt3.g" V{var.v}
+      set var.line = var.line ^ (var.cc2 > 0 ? ", " : "") ^ global.fmt
+      set var.cc2 = var.cc2 + 1
+    echo >>{var.fn} var.line
+    set var.rr = var.rr + 1
+  G29 S1 P{var.fn}
+
+  ; --- statistics of the 49 measured points ---
+  var hmin = var.h[0]
+  var hmax = var.h[0]
+  var hsum = 0
+  var i3 = 0
+  while var.i3 < var.np
+    set var.hmin = min(var.hmin, var.h[var.i3])
+    set var.hmax = max(var.hmax, var.h[var.i3])
+    set var.hsum = var.hsum + var.h[var.i3]
+    set var.i3 = var.i3 + 1
+
+  ; --- check (2026-10-16): point with the largest |height| probed again with the map OFF, same method as the map
+  ;     (pair of dives agreeing within agreeZ); residual = re-measured height - map value at that point (~0 = repeatable).
+  ;     A check WITH the map on is not valid: RRF compensates at the NOZZLE position (offset X -12.4, Y -39.6 from the
+  ;     probe) - test 16.10 19:44: map on +0.050 at X135 Y364 = map at nozzle -0.262 vs bed under probe -0.211.
+  ;     The nozzle-vs-probe map difference is still computed and logged (mesh_check.csv) for information.
+  set var.resid = 0
+  if !var.dry
+    set var.mi = 0
+    var i2 = 1
+    while var.i2 < var.np
+      if abs(var.h[var.i2]) > abs(var.h[var.mi])
+        set var.mi = var.i2
+      set var.i2 = var.i2 + 1
+    set var.mr = floor(var.mi / var.nx)
+    set var.mc = mod(var.mi, var.nx)
+    set var.px = var.x0 + var.mc * var.dx
+    set var.py = var.y0 + var.mr * var.dy
+    G29 S2                            ; map off for the check (same frame as the map points)
+    G1 Z{var.zTravel} F6000
+    G1 X{var.px - var.offX} Y{var.py - var.offY} F24000
+    set var.pOk = false
+    while !var.pOk
+      set var.nd = 0
+      while var.nd < var.maxDives && !var.pOk
+        if sensors.probes[0].value[0] >= sensors.probes[0].threshold
+          M98 P"0:/sys/deployprobe0.g"
+        G38.3 K0 Z{var.trig - 2} F{var.fineF}
+        M400
+        if sensors.probes[0].value[0] < sensors.probes[0].threshold
+          set var.nd = 99
+        else
+          set var.zz = move.axes[2].machinePosition
+          if var.nd > 0 && abs(var.zz - var.prev) <= var.agreeZ
+            set var.pz = (var.zz + var.prev) / 2
+            set var.pOk = true
+          set var.prev = var.zz
+          set var.nd = var.nd + 1
+          G1 Z{var.zz + 0.5} F600
+      if !var.pOk
+        G1 Z{var.zTravel} F600
+        M98 P"0:/sys/msg.g" S{"ERROR K0 check at X" ^ var.px ^ " Y" ^ var.py}
+        M291 P{"Mesh check: no 2 agreeing K0 dives at X" ^ var.px ^ " Y" ^ var.py ^ ". OK = try again, Cancel = stop."} R"MESH ERROR" S3
+    var recheck = var.pz - var.trig
+    set var.resid = var.recheck - var.h[var.mi]
+    G1 Z{var.zTravel} F6000
+    G29 S1 P{var.fn}                  ; map on again
+    if !fileexists("0:/sys/mesh_log.csv")
+      echo >"0:/sys/mesh_log.csv" "czas,row7Delta,punkt_kontrolny_kol,wiersz,wysokosc_mapy,odchylka_z_siatka"
+    echo >>"0:/sys/mesh_log.csv" state.time ^ "," ^ var.row7Delta ^ "," ^ var.mc ^ "," ^ var.mr ^ "," ^ var.h[var.mi] ^ "," ^ var.resid
+    ; information only: map (bilinear, incl. row 8) at the NOZZLE position during the check vs map at the probe point
+    var qx = min(max((var.px - var.offX - var.x0) / var.dx, 0), var.nx - 1)   ; nozzle column (fraction)
+    var qy = min(max((var.py - var.offY - var.y0) / var.dy, 0), var.ny)       ; nozzle row 0..7 (7 = row 8)
+    var ix = min(floor(var.qx), var.nx - 2)
+    var iy = min(floor(var.qy), var.ny - 1)
+    var fx = var.qx - var.ix
+    var fy = var.qy - var.iy
+    var r1 = var.iy + 1
+    var v00 = var.h[var.iy * var.nx + var.ix]
+    var v01 = var.h[var.iy * var.nx + var.ix + 1]
+    var v10 = (var.r1 < var.ny) ? var.h[var.r1 * var.nx + var.ix] : var.h[(var.ny - 1) * var.nx + var.ix] + var.row7Delta
+    var v11 = (var.r1 < var.ny) ? var.h[var.r1 * var.nx + var.ix + 1] : var.h[(var.ny - 1) * var.nx + var.ix + 1] + var.row7Delta
+    var compN = (var.v00 * (1 - var.fx) + var.v01 * var.fx) * (1 - var.fy) + (var.v10 * (1 - var.fx) + var.v11 * var.fx) * var.fy
+    if !fileexists("0:/sys/mesh_check.csv")
+      echo >"0:/sys/mesh_check.csv" "time,probeX,probeY,map_probe,recheck_mapoff,residual,map_nozzle,nozzle_minus_probe"
+    echo >>"0:/sys/mesh_check.csv" state.time ^ "," ^ var.px ^ "," ^ var.py ^ "," ^ var.h[var.mi] ^ "," ^ var.recheck ^ "," ^ var.resid ^ "," ^ var.compN ^ "," ^ (var.compN - var.h[var.mi])
+
+  ; --- summary (both consoles) ---
+  M98 P"0:/sys/fmt4.g" V{var.hmax - var.hmin}
+  var sRange = global.fmt
+  M98 P"0:/sys/fmt4.g" V{var.hsum / var.np}
+  var sMean = global.fmt
+  M98 P"0:/sys/fmt4.g" V{var.resid}
+  var sRes = global.fmt
+  M98 P"0:/sys/msg.g" S{"-- MESH DONE  " ^ (state.upTime - var.t0) ^ " s --"}
+  M98 P"0:/sys/msg.g" S{"Range: " ^ var.sRange ^ "  mean: " ^ var.sMean}
+  if !var.dry
+    M98 P"0:/sys/msg.g" S{"Check X" ^ (var.x0 + var.mc * var.dx) ^ " Y" ^ (var.y0 + var.mr * var.dy) ^ ": " ^ var.sRes}
+  ; decision: within tolCheck -> done; else window Continue / Repeat / Change tol (new value saved to tolerances.g)
+  var again = false
+  if !var.dry && abs(var.resid) > global.tolCheck
+    M98 P"0:/sys/msg.g" S{"WARN check " ^ var.sRes ^ " > tolCheck " ^ global.tolCheck}
+    M300 S2500 P300
+    M300 S1800 P300
+  while !var.dry && abs(var.resid) > global.tolCheck
+    M291 P{"Mesh check (map off, 2 dives): point differs from map by " ^ var.sRes ^ " mm > tolCheck " ^ global.tolCheck ^ " (0:/sys/tolerances.g). Details: mesh_check.csv"} R"MESH CHECK" S4 K{"Continue","Repeat","Change tol"}
+    if input == 0
+      break
+    elif input == 1
+      set var.again = true
+      break
+    else
+      var oldTol = global.tolCheck
+      M98 P"0:/sys/tol_ask.g" S"tolCheck" V{global.tolCheck} A{global.tolCheckR[0]} B{global.tolCheckR[1]} L{global.tolCheckR[2]} H{global.tolCheckR[3]} T"MESH CHECK - CHANGE TOL"
+      if global.tolAskVal >= 0
+        set global.tolCheck = global.tolAskVal
+        M98 P"0:/sys/tol_save.g" S"tolCheck" V{var.oldTol} N{global.tolCheck}
+  if !var.again
+    break
+  M98 P"0:/sys/msg.g" S"Repeating mesh"
+
+if !var.dry
+  M201 X{var.ax} Y{var.ay}              ; restore dynamics from before probing (as mesh.g)
+  M566 X{var.jx} Y{var.jy}
