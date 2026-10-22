@@ -95,12 +95,19 @@ itself. Findings on the author's machine (scripts in `tools/`):
   approach direction −X vs +X ≤ 0.009 mm (`adir.py`).
 - **Bed stability map** (repeatability per point, drift-corrected, `bedstab.py`) and **mesh density check**
   (dense profile vs mesh ≤ 0.016 mm, `prof.py`).
+- **Hotend mount stability:** a loose hotend in its housing was found from repeated HesCal2 runs (22 Oct 2026): the
+  nozzle height at the Stone trigger stayed within 0.012 mm inside one series but jumped in steps of 0.05–0.12 mm
+  between series (pushed up by the dives onto the Stone, moved back by hand cleaning), while Zcythe on the Stone tip
+  and on the bed stayed constant. A probe on the carriage plus a nozzle reference separates "the nozzle moved" from
+  "the bed moved".
 - **Every start:** homing checks B/C catch a failing endstop (a +5 mm fault was caught) or a Z zero shift;
   G32 passes and HesCal2 values (K1 margin, tip height, G31 methods) are logged to `hes_hist.csv`, so changes in the
   mechanics show up from print to print.
 
 In short: if the printer has a mechanical imperfection that moves the nozzle relative to the bed by more than
-~0.01 mm, Zcythe Field will usually show it.
+~0.01 mm, Zcythe Field will usually show it – bed thermal deformation, bed frame sag, skipped Z steps, hotend
+thermal growth and the stability of the hotend and probe mounts. Fix the mechanics first: the calibration cannot
+be more accurate than the loosest part of the machine.
 
 ## Layout
 
