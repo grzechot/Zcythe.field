@@ -42,9 +42,10 @@ Any printer where Zcythe Stone can be fixed rigidly to the bed (or its frame) an
 | CoreXY, flying gantry, fixed bed | Voron 2.4 | bed / bed frame | should work, untested |
 | bed slinger (bed moves in Y) | Prusa i3 style, Ender style | on the moving bed carriage | should work, untested |
 | Cartesian / IDEX with a Z bed | – | bed frame | should work, untested |
+| Delta | Kossel style | on the bed / base, beside the print area | should work, untested |
 
 `bed.g` is written for 4 independent Z motors (`G32` with `M671`); with 1–3 Z motors adapt the levelling points
-or skip G32 in `start.g`. Delta printers are not covered.
+or skip G32 in `start.g`; on a delta use its own calibration instead of G32.
 
 ## Requirements
 
@@ -52,7 +53,7 @@ or skip G32 in `start.g`. Delta printers are not covered.
   nozzle and Zcythe (offset from the nozzle) have to reach its tip. Check `M208` limits and the cable chain.
 - Duet 2 WiFi with **RepRapFirmware 3.6.1** – the only tested combination. Duet 3 / RRF 3.5.x may work
   (the macros use `fileread`, `M291 S4/S6` with buttons, `G38.3 K`, object model expressions) but are untested.
-  Klipper / Marlin: not supported (the method would carry over, the macros would not).
+  Klipper / Marlin: untested – the principle is the same; the macros use RRF meta-commands and need to be ported.
 - Two digital probe inputs: Zcythe as `M558 P5` (K0) and Stone as `M558 K1 P8`.
 - XY probing with moderate dynamics (≈ 2000 mm/s², the macros set it) – Zcythe has a very light trigger.
 - PanelDue (optional – console rules are tuned for the 5"/7" 800 × 480 panel) and DWC.
