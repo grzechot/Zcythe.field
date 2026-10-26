@@ -27,6 +27,10 @@ This repository is the **system**: the RepRapFirmware macros for print start-up 
 calibration, mesh, prime), the calibration macro `HesCal2`, console helpers, Python tools that drive and log the
 printer over HTTP, and the documentation of the method. The probes are separate projects.
 
+The start-up sequence is called **PrintInit**: 10 stages from *Start print* to the first layer, each with a
+line on PanelDue, and an error window with action buttons instead of a cancelled print –
+[screen by screen](docs/printinit.md).
+
 **The Zcythe family:**
 
 - **Zcythe** – bed probe on the toolhead (K0) – [Zcythe.3d-printer-bed-probe](https://github.com/grzechot/Zcythe.3d-printer-bed-probe)
@@ -143,6 +147,7 @@ docs/       documentation
 ## Documentation
 
 - [How it works](docs/how-it-works.md) – the three dives, the formulas, why a reference is needed
+- [PrintInit](docs/printinit.md) – the start sequence screen by screen: what each line and window means
 - [Installation](docs/installation.md) – files on the SD card, `config.g` lines, first run
 - [Macros](docs/macros.md) – every file in `sys/` and `macros/`
 - [Parameters](docs/parameters.md) – what to tune and where

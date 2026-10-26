@@ -2,13 +2,23 @@
 ; Called by home_do.g (retry loop). X and Y must be homed. Check C (Z zero shift) via home_zshift.g.
 if !exists(global.homeErr)
   global homeErr = ""
+; 2026-10-22 (task 15): codes for the operator windows in home_do.g: 11 X/Y not homed, 12 K0 pressed before probing,
+; 13 G30 failed
+if !exists(global.homeErrCode)
+  global homeErrCode = 0
+if !exists(global.homeErrAxis)
+  global homeErrAxis = 2
 set global.homeErr = ""
+set global.homeErrCode = 0
+set global.homeErrAxis = 2
 if !move.axes[0].homed || !move.axes[1].homed
   set global.homeErr = "Z: X/Y not homed"
+  set global.homeErrCode = 11
   M99
 M98 P"0:/sys/deployprobe0.g"    ; K0 must be deployed (waits for the operator if closed)
 if sensors.probes[0].value[0] != 0
   set global.homeErr = "Z: K0 triggered before probing"
+  set global.homeErrCode = 12
   M99
 if exists(global.homeTc0)
   set global.homeTc0 = state.upTime + state.msUpTime / 1000
@@ -20,6 +30,7 @@ if exists(global.homeTz)
   set global.homeTz = state.upTime + state.msUpTime / 1000
 if result != 0 || !move.axes[2].homed
   set global.homeErr = "Z: G30 failed (K0)"
+  set global.homeErrCode = 13
   M99
 if !exists(global.zRefValid)
   global zRefValid = false

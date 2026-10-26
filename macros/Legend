@@ -1,0 +1,27 @@
+; Legend - glossary of Zcythe Field parameter names, printed to the DWC console (2026-10-20, operator)
+; PanelDue shows only one line (its console has 12 rows); full text in DWC. Run from DWC or PanelDue: Macros -> Legend.
+M118 P2 S"Legend: see DWC console"
+M118 P3 S"-- LEGEND (Zcythe Field) --"
+M118 P3 S"K0 (Zcythe) = bed probe on the toolhead (flag + optosensor, manual needle; Manual Deploy = open it)"
+M118 P3 S"K1 (Zcythe Stone) = nozzle sensor on the bed frame; the nozzle presses its tip"
+M118 P3 S"G31 = K0 trigger height: nozzle height above the bed when K0 triggers [mm]"
+M118 P3 S"G31 tip method = dz - refTipBed + kThr (independent of the bed); bed method = from the bed next to K1"
+M118 P3 S"kThr = nozzle height above the bed when K1 triggers = G31 + K1 margin (HesCal2 constant)"
+M118 P3 S"K1 margin = K1 trigger height above K0 trigger; target 0.18 +-0.05; tightening the K1 screw lowers K1"
+M118 P3 S"K1 tip/bed (tipBed) = K1 tip above the bed, measured by K0; ref = value from R1"
+M118 P3 S"dz = machine Z difference: nozzle on K1 vs K0 on the K1 tip"
+M118 P3 S"R1 = HesCal2 reference run (hes_refdata.g: refTipBed, refG31Z); redo after K1/plate/nozzle changes"
+M118 P3 S"lastGoodG31 = last accepted G31 (used when HesCal2 fails or is rejected)"
+M118 P3 S"levelDone / skipCal = flags: G32 done / HesCal2 done - start.g skips these steps"
+M118 P3 S"hopZ = travel Z after levelling: G31 + 0.8, min 1.5 (5 before levelling)"
+M118 P3 S"eOwed = filament retracted by a calibration, to be returned (cancel.g / start.g)"
+M118 P3 S"Mesh = 7x7 bed map + extended row 8 (heightmap_ext.csv); K0 reaches Y364, printing goes to Y387"
+if exists(global.tolBed)
+  M118 P3 S{"tolBed = max deviation of the 4 G32 points: " ^ global.tolBed ^ " mm"}
+if exists(global.tolG31Live)
+  M118 P3 S{"tolG31Live = max G31 change vs last good: " ^ global.tolG31Live ^ " mm"}
+if exists(global.tolG31Methods)
+  M118 P3 S{"tolG31Methods = max difference tip vs bed method: " ^ global.tolG31Methods ^ " mm"}
+if exists(global.tolCheck)
+  M118 P3 S{"tolCheck = max mesh check error: " ^ global.tolCheck ^ " mm"}
+M118 P3 S">DWC on PanelDue = full text of that line is here in the DWC console"

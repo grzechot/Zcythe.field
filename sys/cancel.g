@@ -27,3 +27,5 @@ if exists(global.eOwed) && global.eOwed > 0 && heat.heaters[1].current >= heat.c
   M83
   G1 E{global.eOwed} F600
   set global.eOwed = 0
+; retract z pause.g/wipe/HesCal2 (global.eRetr, max 2 mm) zostaje - dysza stygnie bez wycieku, a nastepny prime
+; odda dokladnie tyle (2026-10-22, wczesniej oddawane tu z global.pauseRetract)

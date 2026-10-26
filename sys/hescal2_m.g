@@ -12,6 +12,11 @@
 ; G31 Z (od 2026-10-13): GLOWNA metoda "od czubka" (tylko dz = K0 i dysza na tym samym czubku K1 + stale z R1) -
 ;   niezalezna od stolu obok K1, ktory "plywa" po duzym G32; "od stolu" tylko kontrola/ostrzezenie. R1 = kotwica od stolu.
 ; 2026-10-16: console in English via hes_log.g -> msg.g (PanelDue + DWC), max 4 decimals, final summary
+; 2026-10-20: long DWC texts (L) with expanded parameter names; PanelDue short text + " >DWC"
+; 2026-10-22 (task 15): operator texts: PanelDue = result (probe offset) + WARNING only out of limits; service values
+;   (tip/bed, dz, margin, G31 tip/bed, K1 screw, R1, k0offset) DWC only; error window with the cause in words
+;   (var.fc) Measure / Clean / Use last / Cancel; G31 change window Accept / Measure / Set limit / Cancel.
+;   G28 Z inside HesCal2 with global.hesQuiet (one homing line). Measurement unchanged.
 ;   block (<= 8 lines). K0 dives = homing values (bed find 120 mm/min in hes_vdive.g, fine 80 mm/min in hes_h.g).
 ;   K1 (nozzle) dives unchanged 30 mm/min. hes_hist.csv labels unchanged (OK2 / OK2-STOL / KALIBRACJA2).
 ; Wywolanie: M98 P"0:/macros/HesCal2" [O1 = pelny pomiar przesuniecia K0->dysza (XY, +4 zjazdy dyszy)]
@@ -20,7 +25,9 @@
 ; Nazwy: K0 (igla K0Tip), K1 (HotEndSensor), Bed, HotEndTip (dysza). Wysokosci w Z maszyny; liczy sie roznica.
 ; --------------------------------------------------------------------------------------
 ; PARAMETRY
-var kThr = 1.0103       ; [mm] dysza nad Bed przy zadzialaniu K1 = G31 + zapas K1 nad K0. 2026-10-14: 1.029 + (0.1938 - 0.2125) po odkreceniu sruby K1 o 1/2 obr.
+var kThr = 0.972        ; [mm] dysza nad Bed przy zadzialaniu K1 = G31 + zapas K1 nad K0. 261026: NOWA K1, 1.018 + (0.182 - 0.228) (k1meas 5x po wipe).
+;                         261024: 0.978 + 0.04 (babystep -0.04 na wydruku -> G31 +0.04).
+;                         2026-10-20: 1.088 - 0.11 (3 wydruki: babystep +0.12 przy G31 0.878 i 0.834, +0.10 przy 0.834 -> korekta -0.10...-0.12).
 ;                         (G31 0.816 z R1 11:59; zapasy z PIERWSZYCH przebiegow po wipe: 0.124 -> 0.210/0.215 - kolejne przebiegi daja ok. 0.01 mniej).
 ;                         Po regulacji sruby/wymianie dyszy/K1: kThr = stare kThr + zmiana zapasu (porownywac pierwsze przebiegi po wipe), potem R1.
 var manualZTrim = 0     ; [mm] dodawane do G31 tuz przed zapisem
@@ -36,7 +43,7 @@ var agree = 0.006       ; [mm] zgodnosc dwoch zjazdow (stol, wierzcholek K0, dys
 var floorMargin = 0.30  ; [mm] zapas dyszy pod oczekiwanym punktem zadzialania K1 (2026-10-13: 0.10 ucinalo zjazdy po duzym G32)
 var k0Clear = 0.8       ; [mm] K0 nad stolem w przejazdach (hop); uzytkownik 2026-10-08: 0.8
 var k0DiveStart = 1.0   ; [mm] K0 nad stolem na POCZATKU zjazdu pomiarowego na stol (K0 wymaga min. 1 mm)
-var calRetract = 6      ; [mm] retract filamentu na czas kalibracji (limit 9 mm z testu 2026-10-08 sprzed wydluzenia trailingu 2026-10-12)
+var calRetract = 2      ; [mm] retract filamentu na czas kalibracji. 2026-10-20: 6 -> 2 (zaciecia PLA w heatbreaku przy wielu kalibracjach; operator). Bylo 6 (limit 9 z testu 2026-10-08)
 var kMargin = 0.2      ; [mm] CEL: K1 zadziala tyle ponad poziomem, na ktorym K0 dotyka stolu (zHEv - zBed). K1 pierwsze, ale niski wierzcholek. 2026-10-09
 var kMarginTol = 0.15   ; [mm] tolerancja celu - w jej obrebie brak sugestii regulacji
 var screwMmPerTurn = 0.4 ; [mm/obr] zmiana progu K1 na 1 obrot sruby regulacji (zmierzone 2026-10-09: 0.5 obr = 0.20 mm); dokrecanie obniza K1
@@ -76,6 +83,8 @@ var fullXY = exists(param.O) && param.O == 1
 var acceptBig = exists(param.A) && param.A == 1
 var saveRef = exists(param.R) && param.R == 1
 var fail = ""
+var fc = 0               ; 2026-10-22: cause for the operator window (1 bed, 2 missed sensor, 3 apex, 4 nozzle no signal, 5 nozzle unstable, 6 stays pressed)
+var cancelled = false    ; 2026-10-22: Cancel print in the G31 change window (stop after mesh/filament restore)
 var meshWas = move.compensation.type == "mesh"
 var meshPath = "" ^ move.compensation.file     ; KOPIA nazwy siatki (samo "= move.compensation.file" sledzi zywy obiekt i po G29 S2 robi sie puste)
 var hop = exists(global.hopZ) ? global.hopZ : 5
@@ -141,6 +150,7 @@ G29 S2
 M98 P"0:/sys/hes_vdive.g" K0 X{var.cX + var.bedOff} Y{var.cY} S5.5 L0.3 N1 Q1
 if !global.vdOk
   set var.fail = "HesCal2: K0 did not find the bed"
+  set var.fc = 1
 else
   set var.zBed = global.vdZ
   set var.nd = 0
@@ -152,6 +162,7 @@ else
     set var.nd = var.nd + 1
     if global.hSt != 0
       set var.fail = "HesCal2: K0 bed dive failed (hSt " ^ global.hSt ^ ")"
+      set var.fc = 1
       set var.nd = 99
     elif var.havePrev && abs(global.hZ - var.prev) <= var.agree
       set var.zBed = (global.hZ + var.prev) / 2
@@ -163,6 +174,7 @@ else
       set var.zBed = global.hZ
   if var.fail == "" && !var.settledB
     set var.fail = "HesCal2: bed dives disagree (agree " ^ var.agree ^ ")"
+    set var.fc = 1
 if var.fail == ""
   set global.hesK0Clear = var.zBed + var.k0Clear   ; od tej chwili zjazdy K0 startuja >= k0Clear nad stolem (hes_h.g)
   ; ochrona stolu dla dyszy ustawiana w kroku 2 (od czubka K1, po pomiarze K0 na czubku)
@@ -192,8 +204,10 @@ while var.fail == "" && !var.settled && var.it < 2
       set var.redo = true
     else
       set var.fail = "HesCal2: K0 missed K1 (first dive, hSt 1) - run HesFind"
+      set var.fc = 2
   elif global.hSt != 0
     set var.fail = "HesCal2: K0 missed K1 (first dive, hSt " ^ global.hSt ^ ") - run HesFind"
+    set var.fc = 2
   else
     set var.zk = global.hZ
   set var.i = 1
@@ -215,8 +229,10 @@ while var.fail == "" && !var.settled && var.it < 2
         set var.redo = true
       else
         set var.fail = "HesCal2: K0 missed K1 (dive " ^ var.i ^ ", hSt 1) - run HesFind"
+        set var.fc = 2
     elif global.hSt != 0
       set var.fail = "HesCal2: K0 missed K1 (dive " ^ var.i ^ ", hSt " ^ global.hSt ^ ") - run HesFind"
+      set var.fc = 2
     else
       set var.zz[var.i] = global.hZ
     set var.i = var.i + 1
@@ -235,7 +251,8 @@ while var.fail == "" && !var.settled && var.it < 2
       set var.settled = true
 if var.fail == "" && !var.settled
   ; po 2 iteracjach nadal przesuniety - przyjmij ostatni wynik, ale ostrzez
-  M98 P"0:/sys/hes_log.g" S"WARNING K1 apex far from K0 cross"
+  M98 P"0:/sys/hes_log.g" S"WARNING sensor tip off centre" L"WARNING HesCal2: K1 apex (nozzle sensor tip) still far from the K0 cross centre after 2 iterations - last result used, check K1 position"
+  M98 P"0:/sys/hes_log.g" S" result used; check sensor position"
 ; wysokosc wierzcholka: zjazdy W wierzcholku (x0, y0) - pierwszy w nowym punkcie nieuzywany, potem dwa zgodne w agree
 set var.nd = 0
 set var.havePrev = false
@@ -247,6 +264,7 @@ while var.fail == "" && var.nd < 5 && !var.settledK
   set var.nd = var.nd + 1
   if global.hSt != 0
     set var.fail = "HesCal2: K0 missed K1 apex (hSt " ^ global.hSt ^ ")"
+    set var.fc = 3
   elif var.nd == 1
     set var.zWin = global.hZ
   elif var.havePrev && abs(global.hZ - var.prev) <= var.agree
@@ -258,6 +276,7 @@ while var.fail == "" && var.nd < 5 && !var.settledK
     set var.zWin = global.hZ
 if var.fail == "" && !var.settledK
   set var.fail = "HesCal2: K0 apex dives disagree (agree " ^ var.agree ^ ")"
+  set var.fc = 3
 
 ; ---------- 2) dysza na K1 ----------
 if var.fail == ""
@@ -296,7 +315,8 @@ if var.fail == "" && var.fullXY
     set var.xN = var.xa
     set var.yN = var.ya
   else
-    M98 P"0:/sys/hes_log.g" S"WARNING nozzle XY failed - offset kept"
+    M98 P"0:/sys/hes_log.g" S"WARNING nozzle X/Y not measured" L"WARNING HesCal2: nozzle XY over K1 not found - K0->nozzle offset (G31 X/Y, k0offset.g) kept unchanged"
+    M98 P"0:/sys/hes_log.g" S" old offset kept"
     set var.fullXY = false
 
 ; --- Z dyszy: do 4 zjazdow w srodku pierscienia, dwa kolejne zgodne w agree ---
@@ -310,6 +330,7 @@ while var.fail == "" && var.nd < 5 && !var.settled2
   set var.nd = var.nd + 1
   if global.hSt != 0
     set var.fail = "HesCal2: nozzle gave no K1 reading (hSt " ^ global.hSt ^ ", floor " ^ global.hesFloor ^ ", expected " ^ var.zHEtop ^ ")"
+    set var.fc = 4
     set var.fail = var.fail ^ "; K1 over bed " ^ (var.zK0v - var.zBed) ^ " (ref " ^ global.refTipBed ^ ") - check K1 signal/lever and nozzle position"
   elif var.nd == 1
     set var.zWin = global.hZ    ; zjazd wstepny (pierwszy w nowym punkcie wypada ok. 0.02 nizej) - tylko ustawia okno
@@ -322,6 +343,7 @@ while var.fail == "" && var.nd < 5 && !var.settled2
     set var.zWin = global.hZ
 if var.fail == "" && !var.settled2
   set var.fail = "HesCal2: nozzle dives disagree (agree " ^ var.agree ^ ") - check K1/nozzle"
+  set var.fc = 5
 ; sprzatanie K1
 if var.k1On
   M400   ; K1 jest stala sonda (config.g) - bez przelaczania J2
@@ -341,37 +363,75 @@ if var.fail != ""
   M83
   G1 E{var.calRetract} F600
   set global.eOwed = 0
-  M98 P"0:/sys/hes_log.g" S{"ERROR " ^ var.fail}
+  if exists(global.hSt) && global.hSt == 9
+    set var.fc = 6
+  var cs = "The probe or sensor stays pressed after lifting."
+  var ck = "lever stuck, dirt."
+  var sl = "ERROR sensor stays pressed"
+  if var.fc == 1
+    set var.cs = "The bed probe could not measure the bed next to the sensor."
+    set var.ck = "nothing on the bed beside the sensor; probe needle clean."
+    set var.sl = "ERROR probe: bed next to sensor"
+  elif var.fc == 2
+    set var.cs = "The bed probe did not hit the sensor tip."
+    set var.ck = "sensor position and lever (service: HesFind)."
+    set var.sl = "ERROR probe missed sensor"
+  elif var.fc == 3
+    set var.cs = "Probe readings on the sensor tip disagree."
+    set var.ck = "sensor tip clean, sensor lever not loose."
+    set var.sl = "ERROR probe on sensor: unstable"
+  elif var.fc == 4
+    set var.cs = "The nozzle did not trigger the nozzle sensor."
+    set var.ck = "plastic blob on the nozzle (button < Clean), sensor cable/lever."
+    set var.sl = "ERROR nozzle did not trigger sensor"
+  elif var.fc == 5
+    set var.cs = "Nozzle readings on the sensor disagree."
+    set var.ck = "plastic on the nozzle or sensor tip."
+    set var.sl = "ERROR nozzle on sensor: unstable"
+  M98 P"0:/sys/hes_log.g" S{var.sl} L{"ERROR HesCal2 calibration failed: " ^ var.fail}
   ; 2026-10-17: in a print (start.g) do NOT cancel - window, operator fixes K0/K1 and decides (heating stays on).
-  ; Repeat = measure again (wrapper 0:/macros/HesCal2), Use last good = G31 = lastGoodG31 and continue, Cancel = stop.
+  ; 2026-10-22: Measure / Clean (wipe, then measure) / Use last (good G31) / Cancel (print). 261022: labels <= 8 chars (PanelDue 125 px).
   if job.file.fileName != null || state.status == "processing"
     var lgOk = exists(global.lastGoodG31) && global.lastGoodG31 > 0.3 && global.lastGoodG31 < 2
     M300 S2500 P300
     M300 S1800 P300
+    var m = var.cs ^ " Check: " ^ var.ck
+    var sLg = ""
     if var.lgOk
-      M98 P"0:/sys/fmt4.g" V{global.lastGoodG31}
-      M291 P{"HesCal2 failed (see console). Fix K0/K1, then Repeat, or print with last good G31 " ^ global.fmt ^ "."} R"HESCAL2: ERROR" S4 K{"Repeat","Use last good","Cancel"}
+      M98 P"0:/sys/fmt3.g" V{global.lastGoodG31}
+      set var.sLg = global.fmt
+      set var.m = var.m ^ " Use last = print with the last good offset " ^ var.sLg ^ " mm."
+    set var.m = var.m ^ " Heaters and motors stay on."
+    M98 P"0:/sys/op_wait.g" S1 W"operator"
+    G4 P400
+    if var.lgOk
+      M291 P{var.m} R"Nozzle calibration failed" S4 K{"Measure", "< Clean", "Use last", "Cancel"}
     else
-      M291 P"HesCal2 failed (see console). Fix K0/K1, then Repeat. No valid last good G31." R"HESCAL2: ERROR" S4 K{"Repeat","Cancel"}
+      M291 P{var.m} R"Nozzle calibration failed" S4 K{"Measure", "< Clean", "Cancel"}
     var ch = input
-    if var.ch == 0
+    M98 P"0:/sys/op_wait.g" S0
+    if var.ch == 0 || var.ch == 1
       if exists(global.hesRepeat)
         set global.hesRepeat = true
-      M98 P"0:/sys/hes_log.g" S"Operator: repeat HesCal2"
+      if var.ch == 1 && exists(global.hesBackWipe)
+        set global.hesBackWipe = true
       M99
-    if var.ch == 1 && var.lgOk
+    if var.ch == 2 && var.lgOk
       if abs(sensors.probes[0].triggerHeight - global.lastGoodG31) > 0.001
         G31 K0 Z{global.lastGoodG31}
+        if !exists(global.hesQuiet)
+          global hesQuiet = false
+        set global.hesQuiet = true
         G28 Z                   ; homez.g clears skipCal and levelDone - levelDone restored below
         M400
+        set global.hesQuiet = false
         if !exists(global.levelDone)
           global levelDone = false
         set global.levelDone = var.lvlWas
-      M98 P"0:/sys/fmt4.g" V{global.lastGoodG31}
-      M98 P"0:/sys/hes_log.g" S{"Operator: last good G31 " ^ global.fmt}
+      M98 P"0:/sys/hes_log.g" S{"Probe offset: " ^ var.sLg ^ " mm (last good)"} L{"Operator: print with the last good G31 " ^ var.sLg ^ " mm (HesCal2 failed)"}
       M99
-    abort "HesCal2: cancelled by operator"
-  abort "HesCal2: stopped - reason in the console above; filament and mesh restored"
+    abort "Calibration stopped by operator"
+  abort "Calibration stopped - cause in the console; filament and mesh restored"
 
 ; ---------- 3) wyniki ----------
 var g31bed = var.zBed - (var.zHEv - var.kThr)    ; "od stolu" - zalezy od stolu obok K1 (plywa po duzym G32): kontrola i kotwica R1
@@ -443,7 +503,7 @@ if var.saveRef
   set global.refHEv = var.zHEv
   set global.refG31Z = var.g31
   set global.lastGoodG31 = var.g31
-  M98 P"0:/sys/hes_log.g" S"R1: saved as new reference"
+  M98 P"0:/sys/hes_log.g" D"HesCal2 R1: this run saved as the new reference (hes_refdata.g: refTipBed, refG31Z, K0/K1 positions)"
   ; bramki liczone wczesniej uzywaly STAREGO refTipBed/lastGoodG31 - po R1 licz je od nowa (nowe odniesienie = ten pomiar)
   set var.g31tip = var.dz - global.refTipBed + var.kThr
   set var.okMethods = abs(var.g31bed - var.g31tip) <= var.tolG31Methods
@@ -456,7 +516,7 @@ if var.fullXY
   var curY = sensors.probes[0].offsets[1]
   var bigChange = abs(var.offX - var.curX) > var.tolOffAccept || abs(var.offY - var.curY) > var.tolOffAccept
   if var.bigChange && !var.acceptBig
-    M98 P"0:/sys/hes_log.g" S{"K0 offset change > " ^ var.tolOffAccept ^ " - NOT saved (O1 A1)"}
+    M98 P"0:/sys/hes_log.g" D{"K0 offset change > " ^ var.tolOffAccept ^ " - NOT saved (O1 A1)"}
   else
     echo >"0:/sys/k0offset.g" "; k0offset.g - przesuniecie K0 wzgledem dyszy = G31 X Y (HesCal2 O1, " ^ state.time ^ ")"
     echo >>"0:/sys/k0offset.g" "if !exists(global.k0OffX)"
@@ -471,23 +531,29 @@ if var.fullXY
     set global.k0OffX = var.offX
     set global.k0OffY = var.offY
     set var.offWritten = true
-    M98 P"0:/sys/hes_log.g" S"K0 offset X/Y saved (k0offset.g)"
+    M98 P"0:/sys/hes_log.g" D"K0 offset X/Y saved (k0offset.g)"
 
 ; ---------- G31 Z ----------
 ; ZABEZPIECZENIE: kThr <= 0 = "nie zmierzone" - nie zapisujemy G31 (ani nie robimy G28 Z), tylko raportujemy
 var lastBefore = exists(global.lastGoodG31) ? global.lastGoodG31 : 0   ; for the summary (lastGoodG31 may change below)
 var res = ""                ; result line of the summary
+var resK = ""               ; 2026-10-22: result kind for the operator line (measured/operator/lastgood/repeat/notset/blocked)
 var rej = false             ; measured G31 rejected (KALIBRACJA2)
 if var.kThr <= 0
   set var.res = "G31 NOT SET: kThr not measured"
+  set var.resK = "notset"
 elif var.okVsLastGood
   set var.g31 = var.g31 + var.manualZTrim
   if var.offWritten
     G31 K0 X{var.offX} Y{var.offY} Z{var.g31}
   else
     G31 K0 Z{var.g31}
+  if !exists(global.hesQuiet)
+    global hesQuiet = false
+  set global.hesQuiet = true
   G28 Z                       ; homez.g zeruje skipCal i levelDone - levelDone przywracamy (G28 Z nie rusza srub)
   M400
+  set global.hesQuiet = false
   if !exists(global.levelDone)
     global levelDone = false
   set global.levelDone = var.lvlWas
@@ -497,26 +563,35 @@ elif var.okVsLastGood
   set global.skipCal = true
   M98 P"0:/sys/fmt4.g" V{var.g31}
   set var.res = "G31 SET " ^ global.fmt ^ " (measured)"
+  set var.resK = "measured"
 else
   set var.rej = true
   ; 2026-10-16: operator decides (window) - Use measured / Repeat. No window for R1 and for test runs (lastGoodG31 = 99).
   var ask = exists(global.lastGoodG31) && global.lastGoodG31 > 0.3 && global.lastGoodG31 < 2 && !var.saveRef && var.kThr > 0
   var choice = -1
   if var.ask
-    M98 P"0:/sys/fmt4.g" V{var.g31}
+    M98 P"0:/sys/fmt3.g" V{var.g31}
     var sMeas = global.fmt
-    M98 P"0:/sys/fmt4.g" V{global.lastGoodG31}
+    M98 P"0:/sys/fmt3.g" V{global.lastGoodG31}
     var sLast = global.fmt
-    M98 P"0:/sys/fmt4.g" V{abs(var.g31 - global.lastGoodG31)}
+    M98 P"0:/sys/fmt3.g" V{abs(var.g31 - global.lastGoodG31)}
     var sDiff = global.fmt
-    M98 P"0:/sys/hes_log.g" S{"G31 " ^ var.sMeas ^ " vs last good " ^ var.sLast}
-    M98 P"0:/sys/hes_log.g" S{"Tol: tolG31Live " ^ var.tolG31Live ^ " (sys/tolerances.g)"}
+    M98 P"0:/sys/hes_log.g" S{"ERROR probe offset changed " ^ var.sDiff ^ " mm"} L{"G31 (K0 trigger height) measured " ^ var.sMeas ^ " mm vs last good " ^ var.sLast ^ " mm, difference " ^ var.sDiff ^ " mm > tolG31Live " ^ var.tolG31Live ^ " mm"}
+    M98 P"0:/sys/op_wait.g" S1 W"operator"
     M300 S2500 P300
     M300 S1800 P300
     while var.choice < 0
-      M291 P{"Measured G31 " ^ var.sMeas ^ " vs last good " ^ var.sLast ^ ": diff " ^ var.sDiff ^ " > tolG31Live " ^ var.tolG31Live ^ " (0:/sys/tolerances.g)"} R"HESCAL2: G31 REJECTED" S4 K{"Use measured","Repeat","Change tol"}
-      if input < 2
-        set var.choice = input
+      M98 P"0:/sys/fmt3.g" V{var.tolG31Live}
+      var m = "New offset " ^ var.sMeas ^ " mm, last good " ^ var.sLast ^ " mm: change " ^ var.sDiff ^ " mm (max " ^ global.fmt ^ ")."
+      set var.m = var.m ^ " If you adjusted the bed sheet, nozzle or sensor, Accept the new value. Otherwise Measure again. Heaters and motors stay on."
+      G4 P400
+      M291 P{var.m} R"Probe offset changed" S4 K{"Accept", "Measure", "Set limit", "Cancel"}
+      var k = input
+      if var.k < 2
+        set var.choice = var.k
+      elif var.k == 3
+        set var.choice = 3
+        set var.cancelled = true
       else
         var oldTol = var.tolG31Live
         M98 P"0:/sys/tol_ask.g" S"tolG31Live" V{var.tolG31Live} A{global.tolG31LiveR[0]} B{global.tolG31LiveR[1]} L{global.tolG31LiveR[2]} H{global.tolG31LiveR[3]} T"HESCAL2 - CHANGE TOL"
@@ -526,6 +601,8 @@ else
           M98 P"0:/sys/tol_save.g" S"tolG31Live" V{var.oldTol} N{global.tolG31Live}
           if abs(var.g31 - global.lastGoodG31) < var.tolG31Live
             set var.choice = 0          ; within the new tolerance = accepted measurement
+  if var.ask
+    M98 P"0:/sys/op_wait.g" S0
   if var.choice == 0
     ; operator: continue with the measured G31 (same as an accepted measurement)
     set var.g31 = var.g31 + var.manualZTrim
@@ -533,8 +610,12 @@ else
       G31 K0 X{var.offX} Y{var.offY} Z{var.g31}
     else
       G31 K0 Z{var.g31}
+    if !exists(global.hesQuiet)
+      global hesQuiet = false
+    set global.hesQuiet = true
     G28 Z
     M400
+    set global.hesQuiet = false
     if !exists(global.levelDone)
       global levelDone = false
     set global.levelDone = var.lvlWas
@@ -544,11 +625,13 @@ else
     set global.skipCal = true
     M98 P"0:/sys/fmt4.g" V{var.g31}
     set var.res = "G31 SET " ^ global.fmt ^ " (operator)"
+    set var.resK = "operator"
   elif var.choice == 1
     ; operator: repeat - G31 unchanged, 0:/macros/HesCal2 runs the measurement again
     if exists(global.hesRepeat)
       set global.hesRepeat = true
     set var.res = "REPEAT requested - G31 unchanged"
+    set var.resK = "repeat"
   ; awaryjnie ostatnie przyjete G31 zamiast wartosci z config.g (2026-10-13: 0.9 z config = warstwa ok. 0.09 mm za nisko).
   ; Zakres 0.3..2: lastGoodG31 = 99 sluzy jako blokada zapisu G31 przy testach. Bez skipCal - nastepny start mierzy ponownie.
   if var.choice >= 0
@@ -559,15 +642,21 @@ else
         G31 K0 X{var.offX} Y{var.offY} Z{global.lastGoodG31}
       else
         G31 K0 Z{global.lastGoodG31}
+      if !exists(global.hesQuiet)
+        global hesQuiet = false
+      set global.hesQuiet = true
       G28 Z                     ; jak wyzej: homez.g zeruje skipCal i levelDone - levelDone przywracamy
       M400
+      set global.hesQuiet = false
       if !exists(global.levelDone)
         global levelDone = false
       set global.levelDone = var.lvlWas
     M98 P"0:/sys/fmt4.g" V{global.lastGoodG31}
     set var.res = "G31 SET " ^ global.fmt ^ " (last good)"
+    set var.resK = "lastgood"
   else
     set var.res = "G31 unchanged (lastGoodG31 blocked)"
+    set var.resK = "blocked"
 
 ; ---------- siatka i filament ----------
 if var.meshWas
@@ -578,7 +667,8 @@ M400
 M83
 G1 E{var.calRetract} F600                ; kompensacja retractu sprzed kalibracji
 set global.eOwed = 0
-; ---------- summary (both consoles, <= 8 lines, max 4 decimals) ----------
+; ---------- summary ----------
+; 2026-10-22 (task 15): PanelDue = DONE + probe offset (+ WARNING out of limits, 2 lines); service values DWC only.
 M98 P"0:/sys/fmt4.g" V{var.tipBed}
 var sTip = global.fmt
 M98 P"0:/sys/fmt4.g" V{global.refTipBed}
@@ -591,15 +681,40 @@ M98 P"0:/sys/fmt4.g" V{var.g31tip}
 var sTipG = global.fmt
 M98 P"0:/sys/fmt4.g" V{var.g31bed}
 var sBedG = global.fmt
-M98 P"0:/sys/hes_log.g" S{"-- HESCAL2 DONE  " ^ (state.upTime - var.t0) ^ " s --"}
-M98 P"0:/sys/hes_log.g" S{"K1 tip/bed: " ^ var.sTip ^ " (ref " ^ var.sRef ^ ")"}
-M98 P"0:/sys/hes_log.g" S{"dz: " ^ var.sDz ^ "  K1 margin: " ^ var.sMarg}
-M98 P"0:/sys/hes_log.g" S{var.sugg}
-M98 P"0:/sys/hes_log.g" S{"G31 tip: " ^ var.sTipG ^ "  bed: " ^ var.sBedG}
-if !var.okMethods
-  M98 P"0:/sys/fmt4.g" V{abs(var.g31bed - var.g31tip)}
-  M98 P"0:/sys/hes_log.g" S{"WARN tip-bed " ^ global.fmt ^ " > tolG31Methods " ^ var.tolG31Methods}
+M98 P"0:/sys/hes_log.g" D{"K1 tip/bed (K1 tip above bed, by K0): " ^ var.sTip ^ " mm, R1 reference " ^ var.sRef ^ " mm"}
+M98 P"0:/sys/hes_log.g" D{"dz (Z: nozzle on K1 minus K0 on K1 tip): " ^ var.sDz ^ " mm; K1 margin (K1 trigger above K0, target " ^ var.kMargin ^ "): " ^ var.sMarg ^ " mm"}
+M98 P"0:/sys/hes_log.g" D{var.sugg}
+M98 P"0:/sys/hes_log.g" D{"G31 (nozzle above bed at K0 trigger): tip method " ^ var.sTipG ^ " mm, bed method " ^ var.sBedG ^ " mm"}
 if var.rej
   M98 P"0:/sys/fmt4.g" V{var.lastBefore}
-  M98 P"0:/sys/hes_log.g" S{"REJECTED vs " ^ global.fmt ^ " > tolG31Live " ^ var.tolG31Live}
-M98 P"0:/sys/hes_log.g" S{var.res}
+  M98 P"0:/sys/hes_log.g" D{"G31 REJECTED: change vs last good " ^ global.fmt ^ " mm > tolG31Live " ^ var.tolG31Live ^ " mm"}
+M98 P"0:/sys/hes_log.g" D{var.res}
+if var.cancelled
+  abort "Calibration stopped by operator"
+if var.resK == "repeat"
+  M99                           ; wrapper 0:/macros/HesCal2 prints "Measuring again" and measures again
+M98 P"0:/sys/hes_log.g" S{"-- NOZZLE CALIBRATION DONE  " ^ (state.upTime - var.t0) ^ " s --"}
+M98 P"0:/sys/fmt3.g" V{sensors.probes[0].triggerHeight}
+var sNow = global.fmt
+M98 P"0:/sys/fmt3.g" V{var.lastBefore}
+if var.resK == "measured"
+  M98 P"0:/sys/hes_log.g" S{"Probe offset: " ^ var.sNow ^ " mm (last " ^ global.fmt ^ ")"}
+elif var.resK == "operator"
+  M98 P"0:/sys/hes_log.g" S{"Probe offset: " ^ var.sNow ^ " mm (your choice)"}
+elif var.resK == "lastgood"
+  M98 P"0:/sys/hes_log.g" S{"Probe offset: " ^ var.sNow ^ " mm (last good)"}
+elif var.resK == "notset"
+  M98 P"0:/sys/hes_log.g" S"WARNING probe offset not set" L"WARNING G31 not set: kThr not measured (hescal2_m.g)"
+  M98 P"0:/sys/hes_log.g" S" kThr not measured (service)"
+else
+  M98 P"0:/sys/hes_log.g" S{"Probe offset: " ^ var.sNow ^ " mm (unchanged)"}
+if !var.okMethods
+  M98 P"0:/sys/fmt3.g" V{abs(var.g31bed - var.g31tip)}
+  var sMd = global.fmt
+  M98 P"0:/sys/fmt3.g" V{var.tolG31Methods}
+  M98 P"0:/sys/hes_log.g" S{"WARNING calibration check off " ^ var.sMd ^ " mm"} L{"WARNING G31 methods differ: tip-bed " ^ var.sMd ^ " mm > tolG31Methods " ^ global.fmt ^ " mm"}
+  M98 P"0:/sys/hes_log.g" S{" max " ^ global.fmt ^ " - check 1st layer"}
+if abs(var.kMarg - var.kMargin) > var.kMarginTol
+  M98 P"0:/sys/fmt3.g" V{var.kMarg}
+  M98 P"0:/sys/hes_log.g" S{"WARNING nozzle sensor margin " ^ global.fmt ^ " mm"} L{"WARNING K1 margin " ^ global.fmt ^ " mm (target " ^ var.kMargin ^ " +- " ^ var.kMarginTol ^ ") - " ^ var.sugg}
+  M98 P"0:/sys/hes_log.g" S{" after print: " ^ (var.kMarg > var.kMargin ? "tighten" : "loosen") ^ " K1 " ^ var.turnsTxt ^ " turn"}

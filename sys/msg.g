@@ -1,6 +1,15 @@
-; msg.g - one console line, the same text to PanelDue (M118 P2) and DWC (M118 P3)
-; rule: PanelDue and DWC consoles must contain the same messages (DWC keeps history, PanelDue only 12 rows)
-; S = text: English, numbers max 4 decimals (fmt4.g), <= 40 chars (PanelDue 800x480: 700 px row, longer text wraps)
+; msg.g - one console line: PanelDue (M118 P2) short, DWC (M118 P3) full
+; S = short text for PanelDue: English, numbers with unit and limit (fmt3/fmt4), <= 40 chars
+; L = optional long text for DWC (expanded parameter names, details) - DWC gets L instead of S
+; D = DWC-only line (service values, map table) - PanelDue gets nothing
+; Rule (2026-10-20, operator): DWC shows everything PanelDue shows, plus expansions.
+; 2026-10-22 (task 15): no " >DWC" marker - the PanelDue line is self-contained. Glossary: macro "Legend" (DWC).
+if exists(param.D)
+  M118 P3 S{param.D}
+  M99
 if exists(param.S)
   M118 P2 S{param.S}
-  M118 P3 S{param.S}
+  if exists(param.L)
+    M118 P3 S{param.L}
+  else
+    M118 P3 S{param.S}

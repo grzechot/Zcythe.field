@@ -4,6 +4,12 @@
 ; B = repeatability: back off 5 mm, approach again at fine speed with H4 (stops, zero NOT reset) -> deviation.
 if !exists(global.homeErr)
   global homeErr = ""
+; 2026-10-22 (task 15): error code and axis for the operator windows in home_do.g (1 not reached coarse, 2 stuck,
+; 3 not reached fine, 4 not reached check B, 5 check B > tolXY)
+if !exists(global.homeErrCode)
+  global homeErrCode = 0
+if !exists(global.homeErrAxis)
+  global homeErrAxis = 0
 if !exists(global.homeChkX)
   global homeChkX = -999
 if !exists(global.homeChkY)
@@ -14,6 +20,8 @@ M98 P"0:/sys/tolerances.g"
 var tolB = global.tolXY          ; [mm] check B tolerance = tolXY in 0:/sys/tolerances.g
 var travel = move.axes[var.a].max - move.axes[var.a].min + 5
 set global.homeErr = ""
+set global.homeErrCode = 0
+set global.homeErrAxis = var.a
 if var.a == 0
   set global.homeChkX = -999
 else
@@ -27,6 +35,7 @@ else
 M400
 if !sensors.endstops[var.a].triggered
   set global.homeErr = var.L ^ " endstop not reached (coarse)"
+  set global.homeErrCode = 1
   G90
   M99
 ; 2. back off 5 mm - switch must release
@@ -37,6 +46,7 @@ else
 M400
 if sensors.endstops[var.a].triggered
   set global.homeErr = var.L ^ " endstop stuck after back-off"
+  set global.homeErrCode = 2
   G90
   M99
 ; 3. fine approach - sets the zero
@@ -47,6 +57,7 @@ else
 M400
 if !sensors.endstops[var.a].triggered
   set global.homeErr = var.L ^ " endstop not reached (fine)"
+  set global.homeErrCode = 3
   G90
   M99
 ; 4. check B: back off 5 mm (must release), approach again with H4
@@ -57,6 +68,7 @@ else
 M400
 if sensors.endstops[var.a].triggered
   set global.homeErr = var.L ^ " endstop stuck after back-off"
+  set global.homeErrCode = 2
   G90
   M99
 if var.a == 0
@@ -72,7 +84,9 @@ else
   set global.homeChkY = var.dev
 if !sensors.endstops[var.a].triggered
   set global.homeErr = var.L ^ " endstop not reached (check B)"
+  set global.homeErrCode = 4
   M99
 if abs(var.dev) > var.tolB
   M98 P"0:/sys/fmt4.g" V{var.dev}
   set global.homeErr = var.L ^ " endstop " ^ global.fmt ^ " > tolXY " ^ var.tolB
+  set global.homeErrCode = 5

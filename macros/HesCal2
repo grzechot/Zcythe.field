@@ -4,9 +4,19 @@
 ; M98 P"0:/macros/HesCal2" [O1 = full K0->nozzle XY offset] [A1 = accept big XY change] [R1 = save as reference]
 if !exists(global.hesRepeat)
   global hesRepeat = false
+; 2026-10-22 (task 15): "Back: clean nozzle" in the error window (global.hesBackWipe) = wipe, then measure again;
+; line "Measuring again (n)"
+if !exists(global.hesBackWipe)
+  global hesBackWipe = false
+var n = 1
 while true
   set global.hesRepeat = false
+  set global.hesBackWipe = false
   M98 P"0:/sys/hescal2_m.g" O{exists(param.O) ? param.O : 0} A{exists(param.A) ? param.A : 0} R{exists(param.R) ? param.R : 0}
   if !global.hesRepeat
     break
-  M98 P"0:/sys/hes_log.g" S"Repeating HesCal2"
+  set var.n = var.n + 1
+  if global.hesBackWipe
+    M98 P"0:/sys/msg.g" S"Operator: clean nozzle, measure again"
+    M98 P"0:/macros/wipe"
+  M98 P"0:/sys/msg.g" S{"Measuring again (" ^ var.n ^ ")"}

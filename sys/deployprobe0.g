@@ -7,6 +7,14 @@
 ; and in the wait loop: every 5 s repeat the window and a two-tone beep, every 30 s a console line.
 ; 2026-10-16: console lines via msg.g (PanelDue + DWC).
 ; 2026-10-16: messages in English.
+; 2026-10-20: no M117 and the window only once (+ every 60 s as fallback) - each repeated M291/M117 left a separate
+;             notification in DWC. Every 5 s only the beep, every 30 s a console line.
+; 2026-10-22 (task 15): window without buttons (S0 T60 - RRF 3.6 refuses S0 T0 "cannot be dismissed"; shown again every
+;             60 s by the loop, closed by M292 when the probe opens; the old OK button only
+;             closed the window and the printer kept waiting). Param C = stage name when K0 closed DURING a measurement
+;             (C"leveling", C"calibration", C"bed map"); without C = closed before a stage (normal). Beep every 5 s for
+;             the first 2 min, then reminders from daemon.g (op_wait.g, printinit_cfg.g timers). Closed 3x during one
+;             PrintInit -> WARNING. Wait loop unchanged.
 
 ; deployprobe.g
 M400                            ; Stop all current movements completely
@@ -16,26 +24,46 @@ if sensors.probes[0].value[0] == 0
     M99                         ; Exit immediately if already open
 
 ; If code reaches here, probe is closed.
+var t = "Open the bed probe"
+var m = "The bed probe (needle on the toolhead) is closed. First check the bed: PEI sheet in place, no print or tools on it."
+set var.m = var.m ^ " Then open the probe by hand. The printer continues by itself. To stop: pause the print."
+if exists(param.C)
+    set var.t = "Bed probe closed during " ^ param.C
+    set var.m = "The bed probe closed by itself while measuring. Check the needle and that nothing lies on the bed,"
+    set var.m = var.m ^ " then open the probe. The " ^ param.C ^ " continues from this point."
 M292                            ; close a possible old message (e.g. "Printing paused") so it does not hide this one
-M291 P"Check Bed. If empty, deploy Z-Probe manually. Waiting..." R"Manual Deploy" S1 T0
-M98 P"0:/sys/msg.g" S"K0 probe closed - deploy it"
-M117 "DEPLOY K0 PROBE"
+M291 P{var.m} R{var.t} S0 T60
+if exists(param.C)
+    M98 P"0:/sys/msg.g" S{var.t} L{var.t ^ " - K0 closed while measuring; open it by hand, the " ^ param.C ^ " continues"}
+    if exists(global.piRun) && global.piRun && job.file.fileName != null
+        if !exists(global.k0Closes)
+            global k0Closes = 0
+        set global.k0Closes = global.k0Closes + 1
+        if global.k0Closes == 3
+            M98 P"0:/sys/msg.g" S"WARNING bed probe closed 3x" L"WARNING bed probe (K0) closed by itself 3 times during this PrintInit"
+            M98 P"0:/sys/msg.g" S" after print: check probe flag"
+else
+    M98 P"0:/sys/msg.g" S"Open bed probe (needle on toolhead)" L"K0 (bed probe, needle on the toolhead) is closed - check the bed, then open it by hand; waiting"
 M300 S2500 P300
 M300 S1800 P300
+M98 P"0:/sys/op_wait.g" S1 W"bed probe"
 
 ; Wait loop: Holds the print stream until the first element of the value array is 0
 var n = 0
 while sensors.probes[0].value[0] > 0
     G4 P100                     ; Wait 100ms between sensor checks to prevent CPU lock
     set var.n = var.n + 1
-    if mod(var.n, 50) == 0      ; every 5 s: repeat the window and the beep
-        M292
-        M291 P"Check Bed. If empty, deploy Z-Probe manually. Waiting..." R"Manual Deploy" S1 T0
+    if mod(var.n, 50) == 0 && var.n <= 1200     ; every 5 s for the first 2 min: beep (then daemon.g reminders)
         M300 S2500 P300
         M300 S1800 P300
-    if mod(var.n, 300) == 0     ; every 30 s: console line
-        M98 P"0:/sys/msg.g" S{"K0 still closed - waiting " ^ floor(var.n / 10) ^ " s"}
+    if mod(var.n, 600) == 0     ; every 60 s: show the window again (fallback if it was closed or hidden)
+        M292
+        M291 P{var.m} R{var.t} S0 T60
 
 ; Clear the message from the screen once open
 M292
-M117 ""
+M98 P"0:/sys/op_wait.g" S0
+if var.n >= 600
+    M98 P"0:/sys/msg.g" S{"Bed probe open after " ^ floor(var.n / 600) ^ " min"}
+else
+    M98 P"0:/sys/msg.g" S"Bed probe open - continuing"
