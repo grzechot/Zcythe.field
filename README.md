@@ -24,7 +24,7 @@ printer over HTTP, and the documentation of the method. The probes are separate 
 
 ## Video
 
-[Zcythe Field in action – Zcythe + Stone v2](YOUTUBE_LINK_TODO) (28 s): Zcythe probes the top of the Stone tip (a cross of dives –
+[Zcythe Field in action – Zcythe + Stone v2](https://youtu.be/-OZQV1-SDUw) (28 s): Zcythe probes the top of the Stone tip (a cross of dives –
 the apex comes from the curvature), then the nozzle presses the same tip until Stone triggers. Earlier:
 [how Zcythe works](https://www.youtube.com/watch?v=oTdeM-AWUHY).
 
