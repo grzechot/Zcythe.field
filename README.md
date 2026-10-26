@@ -6,7 +6,7 @@ Two probes work together:
 | Probe | Name | Where | In RRF |
 |---|---|---|---|
 | bed probe – ball tip on a pivoting arm, opto sensor | **Zcythe** (K0) | on the toolhead | `K0`, `sensors.probes[0]` |
-| nozzle reference sensor – rounded M3 screw head on a lever, opto sensor | **Zcythe Stone** (K1) | on the bed frame, next to the bed | `K1`, `sensors.probes[1]` |
+| nozzle reference sensor – rounded M3 screw head on a long lever (14 : 200 mm), opto sensor | **Zcythe Stone** (K1) | on the bed frame, next to the bed | `K1`, `sensors.probes[1]` |
 
 Before every print the macros measure the bed and the top of K1 with K0, then press the nozzle onto K1.
 From these three dives they compute the nozzle height at the K0 trigger point and set `G31 K0 Z` –
@@ -14,10 +14,19 @@ no paper, no feeler gauge, no manual babystepping after a nozzle change.
 
 This repository is the **system**: the RepRapFirmware macros for print start-up (heating, homing, levelling,
 calibration, mesh, prime), the calibration macro `HesCal2`, console helpers, Python tools that drive and log the
-printer over HTTP, and the documentation of the method. The probes are separate projects:
+printer over HTTP, and the documentation of the method. The probes are separate projects.
 
-- [Zcythe](https://github.com/grzechot/Zcythe.3d-printer-bed-probe) – the bed probe (K0),
-- [Zcythe Stone](https://github.com/grzechot/Zcythe.stone) – the nozzle sensor (K1).
+**The Zcythe family:**
+
+- **Zcythe** – bed probe on the toolhead (K0) – [Zcythe.3d-printer-bed-probe](https://github.com/grzechot/Zcythe.3d-printer-bed-probe)
+- **Zcythe Stone** – nozzle sensor beside the bed (K1) – [Zcythe.stone](https://github.com/grzechot/Zcythe.stone)
+- **Zcythe Field** – the system: RepRapFirmware macros, calibration, tools, docs *(this repository)*
+
+## Video
+
+[Zcythe Field in action – Zcythe + Stone v2](YOUTUBE_LINK_TODO) (28 s): Zcythe probes the top of the Stone tip (a cross of dives –
+the apex comes from the curvature), then the nozzle presses the same tip until Stone triggers. Earlier:
+[how Zcythe works](https://www.youtube.com/watch?v=oTdeM-AWUHY).
 
 ## Status
 
