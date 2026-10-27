@@ -6,6 +6,7 @@ if !exists(global.levelDone)
 if !exists(global.homeT0)
   global homeT0 = 0
 set global.homeT0 = state.upTime
+M98 P"0:/sys/msg.g" S"Homing X, Y, Z"   ; 2026-10-22 (task 15): stage line
 set global.skipCal = false    ; any homing (even one axis) invalidates skipCal: the endstop may give a slightly
                                ; different zero, so a fresh calibration is forced on the next start
 set global.levelDone = false  ; same for levelling (bed.g): after homing the bed must be levelled again
@@ -28,8 +29,13 @@ G1 H2 Z20 F600          ; raise head 20 mm (individual Z motors, no homing neede
 G90
 M913 X25 Y25            ; reduced XY motor current for homing
 M98 P"0:/sys/home_do.g" A3   ; X then Y, checked (endstop reached/released, check B)
+if exists(global.piBack) && global.piBack > 0
+  M913 X100 Y100
+  M99
 set global.homeTxy = state.upTime + state.msUpTime / 1000
 M913 X100 Y100
 G1 X160 Y170 F15000     ; nozzle to probe point (K0 at X150 Y130)
 M98 P"0:/sys/home_do.g" A2   ; Z with K0, checked (check C inside)
+if exists(global.piBack) && global.piBack > 0
+  M99                          ; 261024 (pliki_36): operator step back - start.g repeats an earlier step
 M98 P"0:/sys/home_sum.g" A"all"

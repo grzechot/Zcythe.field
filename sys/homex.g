@@ -6,6 +6,13 @@ if !exists(global.levelDone)
 if !exists(global.homeT0)
   global homeT0 = 0
 set global.homeT0 = state.upTime
+if exists(global.piBack) && global.piBack > 0
+  M99                          ; 261024 (pliki_36): operator step back - start.g repeats an earlier step
+; 2026-10-22 (task 15): stage line (PrintInit = start.g)
+if exists(global.piRun) && global.piRun && job.file.fileName != null
+  M98 P"0:/sys/msg.g" S"[3/10] Homing X, Y"
+else
+  M98 P"0:/sys/msg.g" S"Homing X"
 set global.skipCal = false    ; any homing (even one axis) invalidates skipCal: the endstop may give a slightly
                                ; different zero, so a fresh calibration is forced on the next start
 set global.levelDone = false  ; same for levelling (bed.g): after homing the bed must be levelled again
@@ -13,4 +20,6 @@ M400
 M913 X25 Y25            ; reduced XY motor current for homing
 M98 P"0:/sys/home_do.g" A0
 M913 X100 Y100
+if exists(global.piBack) && global.piBack > 0
+  M99                          ; 261024 (pliki_36): operator step back - start.g repeats an earlier step
 M98 P"0:/sys/home_sum.g" A"X"

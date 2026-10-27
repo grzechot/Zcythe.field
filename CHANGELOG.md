@@ -2,6 +2,25 @@
 
 Dates are when a version went onto the author's printer. Summarised from the Polish work journal.
 
+## 2026-10-26
+- New Zcythe Stone (K1 v2, long lever): `hescal2_m.g` `kThr` 1.0103 → 0.972 mm; `hes_refdata.g` = new R1 reference.
+
+## 2026-10-22 – 2026-10-24 – PrintInit (operator messages)
+- `start.g`: **10 stages** `[1/10]…[10/10]` in a loop, a stage that is already done is skipped with one line,
+  `-- PRINT INIT DONE  n min --` at the end. New: stage 6 *Leveling check* on the warm bed.
+- Every error during the start is a pause with a window (cause, *Check: …*, buttons named after the action),
+  never a cancel. Step-back buttons `< Probe`, `< Home`, `< Level`, `< Warm`, `< Clean`, `< Calib` return to the
+  stage the problem comes from. Button labels ≤ 8 characters (PanelDue has fixed 125 px buttons).
+- Wait timers: `op_wait.g` + `daemon.g`, times in `printinit_cfg.g` – reminder every 5 min, heaters off after
+  30 min, motors off 30 min later; heating and bed warm-up resume when the operator answers.
+- `endstop_test.g`, `probe_test.g`: *Test* buttons – manual signal test, no motion.
+- `msg.g`: `D` = DWC-only line; no " >DWC" marker. Mesh table and HesCal2 service values in DWC only.
+- `bedsoak.g`: progress every 60 s, window *Wait / Skip* (a small print may skip the soak), window
+  *Bed does not reach … C* after 20 min.
+- `deployprobe0.g`: window `S0 T60` (RRF 3.6 rejects `S0 T0`); K0 closing during a measurement is counted.
+- New `mesh_ask.g`, `fmt3s.g`, macro `Legend`. Docs: [docs/printinit.md](docs/printinit.md).
+- Measuring algorithms (homing, G32, HesCal2, Mesh) unchanged.
+
 ## 2026-10-19
 - `hes_manual.g` (new) + `hescal2_m.g` v5: every K0 dive that misses K1 opens a *Manual / Stop* window; the operator
   jogs K0 over the K1 ball (±5 / ±0.5 mm buttons, Z window) and the step restarts from there, in a loop.

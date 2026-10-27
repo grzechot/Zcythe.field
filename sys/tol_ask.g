@@ -14,7 +14,7 @@ while true
     set global.tolAskVal = var.nv
     M99
   M98 P"0:/sys/msg.g" S{"WARN " ^ param.S ^ " " ^ var.nv ^ " outside " ^ param.A ^ "-" ^ param.B}
-  M291 P{param.S ^ " " ^ var.nv ^ " is outside the recommended " ^ param.A ^ "-" ^ param.B ^ " mm."} R"TOLERANCE OUT OF RANGE" S4 K{"Keep " ^ var.nv, "Enter again"}
+  M291 P{param.S ^ " " ^ var.nv ^ " is outside the recommended " ^ param.A ^ "-" ^ param.B ^ " mm."} R"TOLERANCE OUT OF RANGE" S4 K{"Keep", "Re-enter"}
   if input == 0
     set global.tolAskVal = var.nv
     M99

@@ -1,9 +1,12 @@
 ; prime - doladowanie filamentu cofnietego przez wipe i wypchniecie porcji do oczyszczenia dyszy
 ; Konczy sie przejazdem po szczotce (Y60 -> Y20) i uniesieniem Z - BEZ powrotu do ParkCoord i bez wipe po nim
 ; (to trwalo za dlugo i robilo przerwe w druku): kolejny ruch (dojazd do wydruku) robi wywolujacy.
-; Wywolanie: M98 P"0:/macros/prime" [L<mm> = doladowanie zamiast reloadLen] [Q<mm> = retract po purge, domyslnie 0]
-;   - ze slicera (Machine start G-code), PO ustawieniu temp. druku: M98 P"0:/macros/prime"   (Q=0: slicer zaklada
-;     filament niecofniety); resume.g: L = retract z pause.g, Q2 = anty-wyciek na czas szybkiego dojazdu
+; Wywolanie: M98 P"0:/macros/prime" [P<mm> = purge zamiast purgeLen] [Q<mm> = retract po purge, domyslnie 0]
+;   [L<mm> = doladowanie zamiast global.eRetr - tylko recznie]
+;   - start.g: P20 (Q=0: slicer zaklada filament niecofniety); resume.g: Q2 = anty-wyciek na czas szybkiego dojazdu
+;     (resume.g oddaje te 2 mm na pozycji druku)
+; 2026-10-22 (zaciecia): doladowanie = global.eRetr (ile faktycznie cofnely wipe/HesCal2/pause.g), nie stale 20 mm
+; (20 = dawny retract wipe; od 26.09 wipe cofa 2, wiec start wypychal 28 mm, a po serii wipe za malo).
 ; WiperCoord (global.wiperX/wiperY/parkYOffset) jest zdefiniowany TYLKO w wipe.g - tutaj tylko odczyt.
 ; ParkCoord = wiperX, wiperY+parkYOffset - liczone na biezaco, nie cache'owane (patrz komentarz w wipe.g).
 ; Bezpieczne, bo resume.g wola "wipe" przed "prime", a start.g (wipe) biegnie przed drukiem, wiec te globalne sa juz ustawione.
@@ -15,10 +18,14 @@ var liftZ = exists(global.hopZ) ? global.hopZ : 5   ; bezpieczna wysokosc do doj
 var heater = 1              ; grzalka narzedzia 0
 ; brak wlasnej stalej temperatury - prime wymaga temp. ACTIVE biezacego filamentu (nie standby jak
 ; wipe/HesCal), bo tu faktycznie wytlaczamy - standby moglby byc za zimny do porzadnego przepływu
-var reloadLen = 20         ; doladowanie = cofniecie z wipe [mm]; resume.g podaje L = retract z pause.g (start.g bez L)
+if !exists(global.eRetr)
+  global eRetr = 0
+var reloadLen = global.eRetr   ; doladowanie = to, co jest teraz cofniete [mm]
 if exists(param.L)
   set var.reloadLen = param.L
-var purgeLen = 10          ; porcja wypchnieta do oczyszczenia [mm]
+var purgeLen = 10          ; porcja wypchnieta do oczyszczenia [mm]; start.g podaje P20
+if exists(param.P)
+  set var.purgeLen = param.P
 var reloadF = 300          ; predkosc doladowania [mm/min]
 var purgeF = 120           ; predkosc purgingu [mm/min]
 var travelF = (exists(global.hopZ) && global.hopZ < 5) ? 24000 : 6000
@@ -28,25 +35,37 @@ if exists(param.Q)
   set var.postRetract = param.Q
 
 if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
-  abort "prime: najpierw wykonaj G28"
+  abort "Purge: home first (G28)"
 
+if exists(param.Q)
+  M98 P"0:/sys/msg.g" S"Resume: purging nozzle"   ; 2026-10-22 (zad. 15); start.g: linia [9/9] przed wywolaniem
 G90
 G1 Z{var.liftZ} F{var.travelF}
 G1 X{global.wiperX} Y{var.primeY0} F{var.travelF}
 G1 Z{var.primeZ} F{var.travelF}
 if heat.heaters[var.heater].active <= 0
-  abort "prime: brak ustawionej temperatury active dla narzedzia - ustaw ja (slicer/M568) przed drukiem"
+  abort "Purge: no print temperature set"
 ; prime wymaga temp. ACTIVE (nie standby) - faktyczne wytlaczanie. Dodatkowo nie nizej niz granica min.
 ; temp. ekstruzji + 5, bo przy active = 160 (= granica) ekstruder byl blokowany ("Tool 0 was not driven").
 var primeTemp = max(heat.heaters[var.heater].active, heat.coldExtrudeTemperature + 5)
 if heat.heaters[var.heater].current < var.primeTemp
   M568 P0 S{var.primeTemp} A2   ; wlacz grzanie (active), standby bez zmian (M109 nadpisywalo tez standby)
+  ; 2026-10-22 (zad. 15): linia co 30 s w czasie grzania (wczesniej cisza)
+  var tH = state.upTime
+  while heat.heaters[var.heater].current < var.primeTemp - 2
+    G4 S1
+    if state.upTime - var.tH >= 30
+      set var.tH = state.upTime
+      M98 P"0:/sys/msg.g" S{"Nozzle heating: " ^ floor(heat.heaters[var.heater].current) ^ " C / " ^ var.primeTemp ^ " C"}
   M116 P0                       ; czekaj na narzedzie 0
 M83                        ; ekstruder wzgledny
-G1 E{var.reloadLen} F{var.reloadF}
+if var.reloadLen > 0
+  G1 E{var.reloadLen} F{var.reloadF}
 G1 E{var.purgeLen} F{var.purgeF}
+set global.eRetr = 0
 G1 Y{var.primeY1} F{var.wipeF}   ; zdjecie kropli na szczotce
 G1 Y{var.primeY0} F{var.wipeF}
 G1 Z{var.liftZ} F{var.travelF}
 if var.postRetract > 0
   G1 E{-var.postRetract} F1800   ; anty-wyciek na czas szybkiego dojazdu (tylko gdy podano Q)
+  set global.eRetr = var.postRetract

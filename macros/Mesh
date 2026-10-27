@@ -10,6 +10,9 @@
 ;   80 mm/min with G38.3 (no firmware "Stopped at height" line; G30 S-1 does ONE dive at the FIRST speed, i.e. 180),
 ;   up to 5 dives per point until two agree within 0.01 (= M558 A5 S0.01), mean of the agreeing pair.
 ;   Point failure / check out of tolerance -> full-screen window instead of abort / silent warning.
+; 2026-10-22 (task 15): operator texts; map table in DWC only (msg.g D); point window via 0:/sys/mesh_ask.g
+;   (Try point again / Test probe manually / Cancel print); check window Measure map again / Continue / Change limit /
+;   Cancel print (Continue -> WARNING). K0 closed during the map -> deployprobe0.g C"bed map". Probing unchanged.
 ;
 ; --- MANUAL PARAMETERS ---
 var row7Delta = -0.05     ; [mm] how much row 8 (Y423) is HIGHER (+) or LOWER (-) than row 7 (Y364), per column.
@@ -57,7 +60,7 @@ var py = 0
 
 if !var.dry
   if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
-    abort "Mesh: axes not homed"
+    abort "Bed map: home first (G28)"
   if sensors.probes[0].value[0] >= sensors.probes[0].threshold
     M98 P"0:/sys/deployprobe0.g"      ; waits until K0 is deployed (probe open)
   M201 X2000 Y2000                    ; dynamics as mesh.g
@@ -66,7 +69,7 @@ if !var.dry
 while true                            ; whole measurement - repeated when the operator chooses "Repeat"
   if !var.dry
     G29 S2                            ; map off while probing
-    M98 P"0:/sys/msg.g" S"[um]    X5   70  135  200  265  330  395"
+    M98 P"0:/sys/msg.g" D"[um]    X5   70  135  200  265  330  395"
     var r = 0
     while var.r < var.ny
       var c = 0
@@ -81,7 +84,7 @@ while true                            ; whole measurement - repeated when the op
           set var.nd = 0
           while var.nd < var.maxDives && !var.pOk
             if sensors.probes[0].value[0] >= sensors.probes[0].threshold
-              M98 P"0:/sys/deployprobe0.g"
+              M98 P"0:/sys/deployprobe0.g" C"bed map"
             G38.3 K0 Z{var.trig - 2} F{var.fineF}
             M400
             if sensors.probes[0].value[0] < sensors.probes[0].threshold
@@ -96,10 +99,7 @@ while true                            ; whole measurement - repeated when the op
               G1 Z{var.zz + 0.5} F600   ; K0 releases when lifted (continuous mode)
           if !var.pOk
             G1 Z{var.zTravel} F600
-            M98 P"0:/sys/msg.g" S{"ERROR K0 at X" ^ var.px ^ " Y" ^ var.py}
-            M300 S2500 P300
-            M300 S1800 P300
-            M291 P{"Mesh: no 2 agreeing K0 dives (" ^ var.agreeZ ^ " mm) at X" ^ var.px ^ " Y" ^ var.py ^ ". OK = try this point again, Cancel = stop."} R"MESH ERROR" S3
+            M98 P"0:/sys/mesh_ask.g" K0 X{var.px} Y{var.py} N{var.nd == 99 ? 1 : 0}
         set var.h[var.r * var.nx + var.cc] = var.pz - var.trig
         set var.c = var.c + 1
       ; one console line per row (7 values in um, X ascending) - together = the map table
@@ -113,7 +113,7 @@ while true                            ; whole measurement - repeated when the op
           set var.s = " " ^ var.s
         set var.ln = var.ln ^ var.s
         set var.k = var.k + 1
-      M98 P"0:/sys/msg.g" S{var.ln}
+      M98 P"0:/sys/msg.g" D{var.ln}
       set var.r = var.r + 1
     G1 Z{var.zTravel} F6000
   else
@@ -176,7 +176,7 @@ while true                            ; whole measurement - repeated when the op
       set var.nd = 0
       while var.nd < var.maxDives && !var.pOk
         if sensors.probes[0].value[0] >= sensors.probes[0].threshold
-          M98 P"0:/sys/deployprobe0.g"
+          M98 P"0:/sys/deployprobe0.g" C"bed map"
         G38.3 K0 Z{var.trig - 2} F{var.fineF}
         M400
         if sensors.probes[0].value[0] < sensors.probes[0].threshold
@@ -191,8 +191,7 @@ while true                            ; whole measurement - repeated when the op
           G1 Z{var.zz + 0.5} F600
       if !var.pOk
         G1 Z{var.zTravel} F600
-        M98 P"0:/sys/msg.g" S{"ERROR K0 check at X" ^ var.px ^ " Y" ^ var.py}
-        M291 P{"Mesh check: no 2 agreeing K0 dives at X" ^ var.px ^ " Y" ^ var.py ^ ". OK = try again, Cancel = stop."} R"MESH ERROR" S3
+        M98 P"0:/sys/mesh_ask.g" K1 X{var.px} Y{var.py} N{var.nd == 99 ? 1 : 0}
     var recheck = var.pz - var.trig
     set var.resid = var.recheck - var.h[var.mi]
     G1 Z{var.zTravel} F6000
@@ -218,39 +217,71 @@ while true                            ; whole measurement - repeated when the op
     echo >>"0:/sys/mesh_check.csv" state.time ^ "," ^ var.px ^ "," ^ var.py ^ "," ^ var.h[var.mi] ^ "," ^ var.recheck ^ "," ^ var.resid ^ "," ^ var.compN ^ "," ^ (var.compN - var.h[var.mi])
 
   ; --- summary (both consoles) ---
-  M98 P"0:/sys/fmt4.g" V{var.hmax - var.hmin}
+  M98 P"0:/sys/fmt3.g" V{var.hmax - var.hmin}
   var sRange = global.fmt
-  M98 P"0:/sys/fmt4.g" V{var.hsum / var.np}
+  M98 P"0:/sys/fmt3.g" V{var.hsum / var.np}
   var sMean = global.fmt
-  M98 P"0:/sys/fmt4.g" V{var.resid}
+  M98 P"0:/sys/fmt3s.g" V{var.resid}
   var sRes = global.fmt
-  M98 P"0:/sys/msg.g" S{"-- MESH DONE  " ^ (state.upTime - var.t0) ^ " s --"}
-  M98 P"0:/sys/msg.g" S{"Range: " ^ var.sRange ^ "  mean: " ^ var.sMean}
+  M98 P"0:/sys/fmt3.g" V{abs(var.resid)}
+  var sResA = global.fmt
+  M98 P"0:/sys/fmt3.g" V{global.tolCheck}
+  var sTol = global.fmt
+  var cx = var.x0 + var.mc * var.dx
+  var cy = var.y0 + var.mr * var.dy
+  M98 P"0:/sys/msg.g" S{"-- BED MAP DONE  " ^ (state.upTime - var.t0) ^ " s --"}
+  M98 P"0:/sys/msg.g" S{"Bed map range: " ^ var.sRange ^ " mm (mean " ^ var.sMean ^ ")"} L{"Bed map 7x7 (+ row 8 = row 7 " ^ var.row7Delta ^ "): range " ^ var.sRange ^ " mm, mean " ^ var.sMean ^ " mm"}
   if !var.dry
-    M98 P"0:/sys/msg.g" S{"Check X" ^ (var.x0 + var.mc * var.dx) ^ " Y" ^ (var.y0 + var.mr * var.dy) ^ ": " ^ var.sRes}
-  ; decision: within tolCheck -> done; else window Continue / Repeat / Change tol (new value saved to tolerances.g)
+    M98 P"0:/sys/msg.g" S{"Map check: " ^ var.sRes ^ " mm (max " ^ var.sTol ^ ")"} L{"Map check at X" ^ var.cx ^ " Y" ^ var.cy ^ " (map off, 2 dives) vs map: " ^ var.sRes ^ " mm, tolCheck " ^ var.sTol ^ " mm (mesh_check.csv)"}
+  ; decision: within tolCheck -> done; else window (operator 2026-10-22): Measure map again / Continue / Change limit / Cancel
   var again = false
+  var asked = false
+  var cancel = (job.file.fileName != null) ? "Cancel" : "Stop"
+  var bk = (exists(global.piBackLbl) && exists(global.piRun) && global.piRun && job.file.fileName != null) ? global.piBackLbl : ""   ; 261024 (pliki_36): krok wstecz w PrintInit
   if !var.dry && abs(var.resid) > global.tolCheck
-    M98 P"0:/sys/msg.g" S{"WARN check " ^ var.sRes ^ " > tolCheck " ^ global.tolCheck}
+    M98 P"0:/sys/msg.g" S{"ERROR map check " ^ var.sResA ^ " mm (max " ^ var.sTol ^ ")"}
     M300 S2500 P300
     M300 S1800 P300
+    M98 P"0:/sys/op_wait.g" S1 W"operator"
+    set var.asked = true
   while !var.dry && abs(var.resid) > global.tolCheck
-    M291 P{"Mesh check (map off, 2 dives): point differs from map by " ^ var.sRes ^ " mm > tolCheck " ^ global.tolCheck ^ " (0:/sys/tolerances.g). Details: mesh_check.csv"} R"MESH CHECK" S4 K{"Continue","Repeat","Change tol"}
-    if input == 0
-      break
-    elif input == 1
+    M98 P"0:/sys/fmt3.g" V{global.tolCheck}
+    var m = "The re-measured point X" ^ var.cx ^ " Y" ^ var.cy ^ " differs from the map by " ^ var.sResA ^ " mm (max " ^ global.fmt ^ ")."
+    set var.m = var.m ^ " Usually dirt or a loose PEI sheet; measuring the map again usually passes. Heaters and motors stay on."
+    G4 P400
+    if var.bk == ""
+      M291 P{var.m} R"Bed map check failed" S4 K{"Remap", "Continue", "Set limit", var.cancel}
+    else
+      M291 P{var.m} R"Bed map check failed" S4 K{"Remap", "Continue", "Set limit", var.cancel, var.bk}
+    var k = input
+    if var.k == 0
       set var.again = true
+      break
+    elif var.k == 1
+      M98 P"0:/sys/msg.g" S{"WARNING map check " ^ var.sResA ^ " mm"} L{"WARNING map check " ^ var.sResA ^ " mm > tolCheck - operator: Continue"}
+      M98 P"0:/sys/msg.g" S" check 1st layer"
+      break
+    elif var.k == 3
+      M98 P"0:/sys/op_wait.g" S0
+      abort "Bed map stopped by operator"
+    elif var.k == 4
+      set global.piBack = global.piStage - 1
+      M98 P"0:/sys/msg.g" S{"Operator: " ^ var.bk}
       break
     else
       var oldTol = global.tolCheck
-      M98 P"0:/sys/tol_ask.g" S"tolCheck" V{global.tolCheck} A{global.tolCheckR[0]} B{global.tolCheckR[1]} L{global.tolCheckR[2]} H{global.tolCheckR[3]} T"MESH CHECK - CHANGE TOL"
+      M98 P"0:/sys/tol_ask.g" S"tolCheck" V{global.tolCheck} A{global.tolCheckR[0]} B{global.tolCheckR[1]} L{global.tolCheckR[2]} H{global.tolCheckR[3]} T"MAP CHECK - CHANGE LIMIT"
       if global.tolAskVal >= 0
         set global.tolCheck = global.tolAskVal
         M98 P"0:/sys/tol_save.g" S"tolCheck" V{var.oldTol} N{global.tolCheck}
+  if var.asked
+    M98 P"0:/sys/op_wait.g" S0
   if !var.again
     break
-  M98 P"0:/sys/msg.g" S"Repeating mesh"
+  M98 P"0:/sys/msg.g" S"Operator: measure map again"
 
 if !var.dry
   M201 X{var.ax} Y{var.ay}              ; restore dynamics from before probing (as mesh.g)
   M566 X{var.jx} Y{var.jy}
+if exists(global.piBack) && global.piBack > 0
+  M99                                 ; 261024 (pliki_36): step back - start.g repeats calibration, then the map

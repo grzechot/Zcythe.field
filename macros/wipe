@@ -35,21 +35,35 @@ var retractLen = 2         ; drobne cofniecie przeciw sacaniu (wipe wywolywane w
 var retractF = 300         ; predkosc cofania [mm/min]
 
 if !move.axes[0].homed || !move.axes[1].homed || !move.axes[2].homed
-  abort "wipe: najpierw wykonaj G28"
+  abort "Clean nozzle: home first (G28)"
 
 ; --- kontrola temperatury: wystarczajaca = standby biezacego filamentu; za zimno -> dogrzej i czekaj ---
 if heat.heaters[var.heater].standby <= 0
-  abort "wipe: brak ustawionej temperatury standby dla narzedzia - ustaw ja (slicer/M568) przed drukiem"
+  abort "Clean nozzle: no standby temperature set"
 ; M568 zamiast M104/M109: M104/M109 nadpisuja tez STANDBY (sprawdzone 2026-10-05), a M568 S..A2 zmienia tylko active i wlacza grzanie
 ; wipe cofa filament (ruch ekstrudera) - ponizej min. temp. ekstruzji RRF go nie wykona i zglasza
 ; "Tool 0 was not driven". Standby = 160 = dokladnie ta granica, wiec bierzemy margines +5.
 var wipeTemp = max(heat.heaters[var.heater].standby, heat.coldExtrudeTemperature + 5)
 if heat.heaters[var.heater].current < var.wipeTemp
   M568 P0 S{var.wipeTemp} A2   ; wlacz grzanie (active), standby bez zmian
+  ; 2026-10-22 (zad. 15): linia co 30 s w czasie grzania (wczesniej cisza)
+  var tH = state.upTime
+  while heat.heaters[var.heater].current < var.wipeTemp - 2
+    G4 S1
+    if state.upTime - var.tH >= 30
+      set var.tH = state.upTime
+      M98 P"0:/sys/msg.g" S{"Nozzle heating: " ^ floor(heat.heaters[var.heater].current) ^ " C / " ^ var.wipeTemp ^ " C"}
   M116 P0                      ; czekaj na narzedzie 0
 
+; 2026-10-22 (zaciecia): cofniecie DO glebokosci retractLen, nie o retractLen. Wczesniej kazde wywolanie cofalo
+; kolejne 2 mm i nikt ich nie oddawal (k1meas --wipe-each, etap A: 12 wipe = -24 mm przy 165 C) - koniec filamentu
+; trafial do zimnej strefy, a prime oddawal stale 20 mm. global.eRetr = ile mm jest TERAZ cofniete (oddaje prime).
+if !exists(global.eRetr)
+  global eRetr = 0
 M83                        ; ekstruder wzgledny
-G1 E{-var.retractLen} F{var.retractF}
+if global.eRetr < var.retractLen
+  G1 E{-(var.retractLen - global.eRetr)} F{var.retractF}
+  set global.eRetr = var.retractLen
 G90
 G1 X{global.wiperX} Y{global.wiperY - var.wipeYSweep} F{var.travelF}   ; dojazd na dolny kraniec zygzaka
 G1 Z{var.wipeZ} F{var.travelF}

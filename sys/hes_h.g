@@ -25,7 +25,7 @@ if var.k == 1 && exists(global.hesFloor)
 ; odroznieniu od G38.3) NIE wywola sama deployprobe0.g, jesli igla jest w stanie cofnietym. Jawne
 ; wywolanie tutaj - ma szybkie wyjscie, gdy juz otwarta, wiec bezpieczne przy kazdym zjezdzie K0.
 if var.k == 0
-  M98 P"0:/sys/deployprobe0.g"
+  M98 P"0:/sys/deployprobe0.g" C"calibration"   ; 2026-10-22: K0 closed during HesCal2 (task 15 window text)
 M400
 while sensors.probes[var.k].value[0] >= sensors.probes[var.k].threshold && var.n < var.unblockCap
   G91
@@ -38,7 +38,7 @@ if sensors.probes[var.k].value[0] >= sensors.probes[var.k].threshold
   ; przekroczony limit podniesienia bez odslonięcia - dalsza jazda nie ma sensu (ani w kolejnych probach
   ; w innych punktach - stad "stol caly czas sie oddala" widziane wczesniej). abort (nie M99!) zatrzymuje
   ; cala kalibracje, ale NIE wylacza silnikow (M18/M84) - zasilanie i bazowanie zostaja zachowane.
-  M98 P"0:/sys/hes_log.g" S{"ERROR K" ^ var.k ^ " stays triggered after " ^ (var.unblockCap * 0.01) ^ " mm lift"}
+  M98 P"0:/sys/hes_log.g" D{"ERROR K" ^ var.k ^ " stays triggered after " ^ (var.unblockCap * 0.01) ^ " mm lift"}
   if job.file.fileName != null || state.status == "processing"
     set global.hSt = 9          ; 2026-10-17: in a print no abort - caller (HesCal2) shows the operator window
     M99
@@ -60,7 +60,7 @@ if sensors.probes[var.k].value[0] >= sensors.probes[var.k].threshold
   set global.hZ = param.S
 elif var.Lc >= param.S - 0.005
   ; floor wypadl nad poczatkiem zjazdu - brak miejsca na zjazd, bez ruchu w dol (hSt zostaje 1 = brak zadzialania)
-  M98 P"0:/sys/hes_log.g" S"hes_h: floor >= start - dive skipped"
+  M98 P"0:/sys/hes_log.g" D"hes_h: floor >= start - dive skipped"
 else
   G38.3 K{var.k} Z{var.Lc} F{var.spd}
   M400
@@ -80,7 +80,7 @@ while sensors.probes[var.k].value[0] >= sensors.probes[var.k].threshold && var.n
   set var.n = var.n + 1
 G90
 if sensors.probes[var.k].value[0] >= sensors.probes[var.k].threshold
-  M98 P"0:/sys/hes_log.g" S{"ERROR K" ^ var.k ^ " stays triggered after dive"}
+  M98 P"0:/sys/hes_log.g" D{"ERROR K" ^ var.k ^ " stays triggered after dive"}
   if job.file.fileName != null || state.status == "processing"
     set global.hSt = 9          ; 2026-10-17: in a print no abort - caller (HesCal2) shows the operator window
     M99

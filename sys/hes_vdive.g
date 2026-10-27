@@ -23,7 +23,7 @@ while var.i < var.n
   G1 Z{param.S} F600
   M400
   if sensors.probes[param.K].value[0] >= sensors.probes[param.K].threshold
-    M98 P"0:/sys/hes_log.g" S{"ERROR K" ^ param.K ^ " triggered before dive"}
+    M98 P"0:/sys/hes_log.g" D{"ERROR K" ^ param.K ^ " triggered before dive"}
     G1 Z6 F600
     M99
   G38.3 K{param.K} Z{param.L} F{var.f}
@@ -32,13 +32,13 @@ while var.i < var.n
   ; zadziałanie = stan czujnika po zjeździe (pozycja Z zaokrąglana do mikrokroku)
   if sensors.probes[param.K].value[0] < sensors.probes[param.K].threshold
     G1 Z6 F600
-    M98 P"0:/sys/hes_log.g" S{"ERROR K" ^ param.K ^ " no trigger down to Z" ^ param.L}
+    M98 P"0:/sys/hes_log.g" D{"ERROR K" ^ param.K ^ " no trigger down to Z" ^ param.L}
     M99
   set var.sum = var.sum + var.z
   set var.zmn = min(var.zmn, var.z)
   set var.zmx = max(var.zmx, var.z)
   if !exists(param.Q)
-    M98 P"0:/sys/hes_log.g" S{"K" ^ param.K ^ " dive " ^ var.i ^ ": Z" ^ var.z}
+    M98 P"0:/sys/hes_log.g" D{"K" ^ param.K ^ " dive " ^ var.i ^ ": Z" ^ var.z}
 G1 Z6 F600
 M400
 set global.vdZ = var.sum / var.n
