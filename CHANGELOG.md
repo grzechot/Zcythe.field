@@ -2,6 +2,10 @@
 
 Dates are when a version went onto the author's printer. Summarised from the Polish work journal.
 
+## 2026-10-31
+- Docs: the **nozzle wiper is required** for a correct nozzle-to-K1 measurement – a plain strip of sheet metal bent
+  at 90°, works better than silicone pads ([installation](docs/installation.md#nozzle-wiper), README *Requirements*).
+
 ## 2026-10-26
 - New Zcythe Stone (K1 v2, long lever): `hescal2_m.g` `kThr` 1.0103 → 0.972 mm; `hes_refdata.g` = new R1 reference.
 

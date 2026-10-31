@@ -212,8 +212,10 @@ Same windows as stage 4, with the step-back button *< Warm*.
 Nozzle heating: 158 C / 165 C              <- every 30 s, only if still heating
 ```
 
-Macro `wipe`: it waits for 165 °C, retracts the filament a little and wipes the nozzle on the brush.
-A clean nozzle is needed for the next stage, where the nozzle tip touches the sensor.
+Macro `wipe`: it waits for 165 °C, retracts the filament a little and wipes the nozzle on the wiper
+(a strip of sheet metal bent at 90°, see [installation](installation.md#nozzle-wiper)).
+A clean nozzle is needed for the next stage, where the nozzle tip touches the sensor – filament left on the tip
+would add to the measured offset.
 
 ## Stage 8 – Nozzle calibration (HesCal2)
 
@@ -298,7 +300,7 @@ Nozzle heating: 214 C / 220 C
 ```
 
 The nozzle heats to 220 °C (the print file does not exist yet, so this is a fixed value in `start.g`). Macro
-`prime` gives back the filament retracted in stage 7, extrudes 20 mm and wipes the nozzle on the brush.
+`prime` gives back the filament retracted in stage 7, extrudes 20 mm and wipes the nozzle on the wiper.
 
 ## Done
 

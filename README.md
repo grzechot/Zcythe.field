@@ -79,6 +79,10 @@ or skip G32 in `start.g`; on a delta use its own calibration instead of G32.
   (the macros use `fileread`, `M291 S4/S6` with buttons, `G38.3 K`, object model expressions) but are untested.
   Klipper / Marlin: untested – the principle is the same; the macros use RRF meta-commands and need to be ported.
 - Two digital probe inputs: Zcythe as `M558 P5` (K0) and Stone as `M558 K1 P8`.
+- **A nozzle wiper is required.** The nozzle is pressed onto the Stone tip, so any filament left on it (a drop of
+  ooze, a thin PLA skin) adds directly to the measured nozzle height and to `G31`. The wiper is a plain strip of
+  sheet metal bent at 90° – it scrapes the tip clean better than silicone pads. See
+  [installation](docs/installation.md#nozzle-wiper).
 - XY probing with moderate dynamics (≈ 2000 mm/s², the macros set it) – Zcythe has a very light trigger.
 - PanelDue (optional – console rules are tuned for the 5"/7" 800 × 480 panel) and DWC.
 - Python 3.8+ (standard library only) for `tools/`.

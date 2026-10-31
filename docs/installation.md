@@ -18,6 +18,24 @@ power-off) and one fixed fine speed everywhere (80 mm/min), because the K0 trigg
 K1 is defined permanently, so DWC shows both probes. The `G31 K0` values in `config.g` are only start-up
 defaults – `k0offset.g` (written by `HesCal2 O1`) and `HesCal2` overwrite them at runtime.
 
+### Nozzle wiper
+
+**Required for a correct nozzle-to-K1 measurement.** In `HesCal2` the nozzle itself is pressed onto the K1 tip.
+Whatever sticks to the nozzle tip – a drop of ooze, a thin skin of filament – lifts the nozzle by its thickness at
+the K1 trigger, and the error goes straight into `G31` (first layer too high). The scatter shows up as nozzle-on-K1
+heights that drift or jump between runs. `start.g` therefore wipes the nozzle (stage 7, `macros/wipe`) right before
+the calibration.
+
+The wiper is a **plain strip of sheet metal bent at 90°**: one leg fixed to the bed frame, the other standing up
+with its edge across the nozzle path. The hot nozzle (≥ 165 °C) is dragged across the edge in a zig-zag
+(`macros/wipe`, Z 2 mm, ±11 mm in Y, 8 strokes stepping in X) and the edge scrapes the tip. On the author's
+printer this works **better than silicone pads**.
+
+- Place it outside the print area, where the nozzle can reach it (author: X 410, Y 35).
+- Set its height so the nozzle at `wipeZ` (2 mm) drags over the edge; set `wiperX`, `wiperY`, `parkYOffset`
+  in `macros/wipe` (see section 4).
+- The same wiper is used by `prime` (after the purge) and by `pause.g` / `resume.g` (park position).
+
 ## 2. `config.g` lines the macros rely on
 
 ```gcode
@@ -60,7 +78,7 @@ Optional files created at runtime: `k0offset.g` (K0→nozzle XY offset, `HesCal2
 
 ## 4. Machine-specific values to edit
 
-See [parameters](parameters.md). At minimum: wiper position (`macros/wipe`: `wiperX`, `wiperY`, `parkYOffset`),
+See [parameters](parameters.md). At minimum: wiper position ([nozzle wiper](#nozzle-wiper)) (`macros/wipe`: `wiperX`, `wiperY`, `parkYOffset`),
 bed temperature and prime temperature (`start.g`), Mesh grid (`macros/Mesh`), leadscrew probe points (`bed.g`),
 K1 position (`hes_last.g` / `hes_refdata.g`, or run `HesFind`), `kThr` and margins (`hescal2_m.g`).
 

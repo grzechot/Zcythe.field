@@ -79,8 +79,8 @@ configuration, kept because the core files call it or assume it.
 
 | File | Role |
 |---|---|
-| `wipe` | Temperature check (heats to standby ≥ 165 °C if needed), 2 mm retract, zig-zag over the physical wiper. **Defines** `wiperX`, `wiperY`, `parkYOffset` – edit them here. |
-| `prime` | Reload + purge + brush pass, no return to park. Called by `start.g` (stage 10) and `resume.g`. `L` = reload length, `Q` = retract after purge. |
+| `wipe` | Temperature check (heats to standby ≥ 165 °C if needed), 2 mm retract, zig-zag over the physical wiper (sheet-metal strip bent at 90°, [installation](installation.md#nozzle-wiper)). **Defines** `wiperX`, `wiperY`, `parkYOffset` – edit them here. |
+| `prime` | Reload + purge + wiper pass, no return to park. Called by `start.g` (stage 10) and `resume.g`. `L` = reload length, `Q` = retract after purge. |
 | `RetryLastStep` | Resume `start.g` from `lastInitStep` while the axes are still homed. |
 | `SkipCalOn` / `SkipCalOff` | Next `start.g` skips / does G32 and HesCal2. |
 

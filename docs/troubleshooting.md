@@ -9,7 +9,7 @@ Collected while developing Zcythe Field on RRF 3.6.1 / Duet 2 WiFi (Sept–Oct 2
 | "Probe already triggered", "K0 did not find the bed", K0 "closes by itself" | The nozzle triggered K1 *lower* than K0 touches the bed (`K1 margin` < 0): the K0 needle is pushed into the bed and latches closed. Raise K1 (screw) to a positive margin (~0.2). Second cause: shocks – K0 has a very light trigger, so probing uses gentle dynamics (M201 2000, M566 300). |
 | K0 misses K1 (`hSt 1`) | K1 moved (mechanics changed, ΔX −3.6 mm seen) – use the Manual window or `HesFind`. |
 | First dive in a new spot reads 0.02–0.045 low | Normal. A preliminary dive is discarded, then two dives must agree within 0.006. |
-| Nozzle-on-K1 heights drift or jump between two states (~0.13) | Dirty nozzle (PLA on the tip), K1 mount loose, or the flag sitting right at the opto beam edge (dead-zone screw over-adjusted). Clean the nozzle hot; check the K1 mount. |
+| Nozzle-on-K1 heights drift or jump between two states (~0.13) | Dirty nozzle (PLA on the tip), K1 mount loose, or the flag sitting right at the opto beam edge (dead-zone screw over-adjusted). Clean the nozzle hot; check the K1 mount. A wiper is required – a sheet-metal strip bent at 90° scrapes better than silicone pads ([installation](installation.md#nozzle-wiper)). |
 | K1 trigger height drops with every dive | The lever was pressed far beyond the trigger point repeatedly. Do not push K1 past its trigger. |
 | G31 depends on probing speed | Yes: F240 ≈ 0.04 lower than F30–F60. Use one speed everywhere (80 mm/min fine). |
 | K1 tip response is a parabola, not a flat ring | Measured with `HesTip`: the nozzle (ring ID 0.4 / OD 1.0) on the K1 tip also gives a parabola; error ≈ d²/(2R), R ≈ 7.5 (0.1 mm off-centre → 0.001; 0.5 → 0.025). |
