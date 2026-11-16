@@ -53,6 +53,19 @@ Script help texts and some output are still in Polish.
 | `adir.py` | yes | Approach direction −X vs +X in a chosen area. |
 | `prof.py` | yes | Dense K0 profile along Y vs the interpolated Mesh (is the grid dense enough?). |
 
+## Z drive diagnostics
+
+See [Z drive diagnostics](z-drive-diagnostics.md) for the method and results.
+
+| Script | Moves | Purpose |
+|---|---|---|
+| `zdir_sweep.py` | yes | Ladder test of Z limits per bed direction (jerk, acceleration, speed); K0 step-loss check after each series, confirmation, final validation. Uses `sys/zdir_step.g`, `ztest_chk.g`, `ztest_lvl.g`. |
+| `zhop4_sweep.py` | yes | Z-hop in 4 phases (`sys/zhop4_step.g`): junction check, per-phase ladders, final; `--etap res` = z-hop duration vs bed resonance; `--acc` records LIS3DH. |
+| `acc_z.py` | no | Downloads and analyses LIS3DH recordings (peak, p2p, RMS, settle time). |
+| `zres_an.py`, `zres_plots.py` | no | Residual vibration after landing per z-hop and per band (11.7 / 16.7 / 30 / 36.7 / 45 / 97 Hz), figures. |
+| `acc_spec.py` | no | Average amplitude spectrum after a z-hop vs background. |
+| `zdiag_figs_en.py` | no | The figures used in the documentation. |
+
 ## CAD
 
 | Script | Purpose |

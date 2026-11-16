@@ -146,6 +146,7 @@ macros/     files for 0:/macros (HesCal2 wrapper, Mesh, wipe, prime, HesFind, He
 examples/   the author's config.g (reference only)
 tools/      Python/PowerShell helpers using the rr_* HTTP API (set PRINTER_HOST); tools/cad – .pk2 thumbnails
 docs/       documentation
+stl/        printed parts and test prints (stl/z-drive – Z drive diagnostics)
 ```
 
 ## Documentation
@@ -159,6 +160,7 @@ docs/       documentation
 - [Procedures](docs/procedures.md) – R1 reference, K1 margin, screw adjustment, after a print
 - [Console](docs/console.md) – PanelDue/DWC message rules
 - [Tools](docs/tools.md) – Python scripts
+- [Z drive diagnostics](docs/z-drive-diagnostics.md) – Zcythe as a 4-corner step-loss detector, Z limits per direction, z-hop matched to the bed resonance
 - [Troubleshooting / lessons learned](docs/troubleshooting.md)
 - [Changelog](CHANGELOG.md)
 
