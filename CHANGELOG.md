@@ -2,6 +2,14 @@
 
 Dates are when a version went onto the author's printer. Summarised from the Polish work journal.
 
+## 2026-11-16 – Z drive diagnostics
+- New [Z drive diagnostics](docs/z-drive-diagnostics.md): Zcythe (K0) at the 4 leadscrews as a step-loss
+  detector (0.005 mm repeatability, 0.03 mm threshold), Z limits per bed direction, 4-phase z-hop, z-hop duration
+  matched to the bed resonance (16.7 Hz → 6–8× less ringing after landing). Author's config: `M201 Z330`, `M566 Z20`.
+- New macros `sys/ztest_chk.g`, `ztest_lvl.g`, `zdir_step.g`, `zhop4_step.g`; tools `zdir_sweep.py`,
+  `zhop4_sweep.py`, accelerometer analysis; `voron_api.run(..., wait0)` keeps HTTP silent during LIS3DH recordings.
+- New `stl/z-drive/`: z-hop test print (islands), placeholders for the accelerometer holder.
+
 ## 2026-10-31
 - Docs: the **nozzle wiper is required** for a correct nozzle-to-K1 measurement – a plain strip of sheet metal bent
   at 90°, works better than silicone pads ([installation](docs/installation.md#nozzle-wiper), README *Requirements*).

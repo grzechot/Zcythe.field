@@ -77,13 +77,13 @@ def state():
             f"lastGoodG31={g.get('lastGoodG31')}")
 
 
-def run(code, max_s=600):
+def run(code, max_s=600, wait0=1.0):
     """Wysyla G-code, czeka na koniec (kanal HTTP bezczynny). Zwraca (ok, odpowiedz)."""
     get("/rr_reply")
     r = get("/rr_gcode?gcode=" + urllib.parse.quote(code)).strip()
     log(f"WYSLANO: {code}  ({r})")
     t0 = time.time(); box_seen = False; out = []
-    time.sleep(1.0)
+    time.sleep(wait0)   # wait0: HTTP silence after sending (longer during LIS3DH recording - WiFi SPI hang risk)
     while time.time() - t0 < max_s:
         rep = get("/rr_reply").strip()
         if rep:
